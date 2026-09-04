@@ -1,0 +1,178 @@
+{
+  "users": [
+    {
+      "id": "user-admin",
+      "username": "ember",
+      "displayName": "Ember",
+      "email": "inkurgic@gmail.com",
+      "passwordHash": "$2a$10$8m6D4ZJJHzifaMW7nteQM.rEcpLRpDgTw0Uqdv091Qp2q4DXBVCva",
+      "bio": "Poet, editor, and steward of creative sparks.",
+      "avatar": "",
+      "isAdmin": true,
+      "isPaid": true,
+      "followers": [
+        "user-1788429810259-b73ee0",
+        "user-1788521296527-6fc2ce"
+      ],
+      "following": [],
+      "saved": [],
+      "createdAt": "2026-09-03T09:58:41.623Z"
+    },
+    {
+      "id": "user-1788429810259-b73ee0",
+      "username": "Mie",
+      "displayName": "Miea",
+      "email": "mie@gmail.com",
+      "passwordHash": "$2a$10$Gp5GPKJnhhHBlxF3KB/HSuwVpk3/0L1PAFpkFogRMKKC1e7sYqoOC",
+      "bio": "New writer on INKurgic.",
+      "avatar": "",
+      "isAdmin": false,
+      "isPaid": true,
+      "followers": [
+        "user-1788521296527-6fc2ce"
+      ],
+      "following": [
+        "user-admin"
+      ],
+      "saved": [
+        "writing-1788520852716-e07d2e"
+      ],
+      "createdAt": "2026-09-03T10:03:30.478Z"
+    },
+    {
+      "id": "user-1788521296527-6fc2ce",
+      "username": "Anna",
+      "displayName": "Annie",
+      "email": "annie@gmail.com",
+      "passwordHash": "$2a$10$F7QaghdEjNMRq3BnlhrHI.BeWC7f7sihF.EXkIlw8p5fm.D1HdbRu",
+      "bio": "New writer on INKurgic.",
+      "avatar": "",
+      "isAdmin": false,
+      "isPaid": false,
+      "followers": [],
+      "following": [
+        "user-admin",
+        "user-1788429810259-b73ee0"
+      ],
+      "saved": [],
+      "createdAt": "2026-09-04T11:28:16.754Z"
+    }
+  ],
+  "writings": [
+    {
+      "id": "writing-1788520852716-e07d2e",
+      "authorId": "user-1788429810259-b73ee0",
+      "title": "Complicated",
+      "content": "Distant, unsure, unworthy\nfrustration and wrath.\nHeavy head, heavy mind,\nnauseous plight.",
+      "category": "poetry",
+      "tags": [],
+      "image": "",
+      "status": "published",
+      "likes": [
+        "user-1788429810259-b73ee0"
+      ],
+      "comments": [
+        {
+          "id": "comment-1788521086491-5d9f72",
+          "authorId": "user-1788429810259-b73ee0",
+          "authorName": "Miea",
+          "text": "I love this!!!",
+          "createdAt": "2026-09-04T11:24:46.491Z"
+        },
+        {
+          "id": "comment-1788521172827-03c37a",
+          "authorId": "user-1788429810259-b73ee0",
+          "authorName": "Miea",
+          "text": "Thank you",
+          "createdAt": "2026-09-04T11:26:12.827Z"
+        }
+      ],
+      "createdAt": "2026-09-04T11:20:52.716Z",
+      "updatedAt": "2026-09-04T11:20:52.716Z"
+    },
+    {
+      "id": "writing-demo-2",
+      "authorId": "user-admin",
+      "title": "The Quiet Margin",
+      "content": "I keep my best sentences for the pauses between the bells, where silence becomes an honest witness.",
+      "category": "prose",
+      "tags": [
+        "reflection",
+        "silence"
+      ],
+      "image": "",
+      "status": "published",
+      "likes": [
+        "user-1788429810259-b73ee0"
+      ],
+      "comments": [],
+      "createdAt": "2026-09-02T09:58:41.624Z",
+      "updatedAt": "2026-09-02T09:58:41.624Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "note-1788521373838-664723",
+      "userId": "user-1788429810259-b73ee0",
+      "type": "follow",
+      "message": "Annie started following you.",
+      "relatedId": "user-1788521296527-6fc2ce",
+      "read": false,
+      "createdAt": "2026-09-04T11:29:33.838Z"
+    },
+    {
+      "id": "note-1788521372577-c2df17",
+      "userId": "user-admin",
+      "type": "follow",
+      "message": "Annie started following you.",
+      "relatedId": "user-1788521296527-6fc2ce",
+      "read": false,
+      "createdAt": "2026-09-04T11:29:32.577Z"
+    },
+    {
+      "id": "note-1788521107290-70ace0",
+      "userId": "user-admin",
+      "type": "like",
+      "message": "Mie liked your writing.",
+      "relatedId": "writing-demo-2",
+      "read": false,
+      "createdAt": "2026-09-04T11:25:07.290Z"
+    },
+    {
+      "id": "note-1788520891357-7ae30e",
+      "userId": "user-admin",
+      "type": "follow",
+      "message": "Miea started following you.",
+      "relatedId": "user-1788429810259-b73ee0",
+      "read": false,
+      "createdAt": "2026-09-04T11:21:31.357Z"
+    }
+  ],
+  "subscriptions": [
+    {
+      "id": "sub-1788430787730",
+      "userId": "user-1788429810259-b73ee0",
+      "planId": "go-pro",
+      "active": true,
+      "createdAt": "2026-09-03T10:19:47.730Z"
+    }
+  ],
+  "reports": [],
+  "feedback": [],
+  "supportMessages": [
+    {
+      "id": "support-1788520928977-0f59f5",
+      "userId": "user-1788429810259-b73ee0",
+      "from": "You",
+      "text": "Hey Ember",
+      "createdAt": "2026-09-04T11:22:08.977Z"
+    },
+    {
+      "id": "support-1788520978449-54d4ec",
+      "userId": "user-1788429810259-b73ee0",
+      "from": "You",
+      "text": "Hi",
+      "createdAt": "2026-09-04T11:22:58.449Z"
+    }
+  ]
+}

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>INKurgic - Write, Share, React</title>
+    <link rel="icon" href="./Img/Logo.jpg" type="icon" />
+    <link rel="stylesheet" href="ink.css" />
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="brand">
+        <img src="./Img/Logo.jpg" alt="INKurgic Logo" class="brand-img" />
+        <h2 class="logo">INKurgic</h2>
+      </div>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
+        <span class="bar"></span>
+      </button>
+      <ul class="nav-links">
+        <li><a href="javascript:void(0)" onclick="navigate('home')">Home</a></li>
+        <li><a href="javascript:void(0)" onclick="navigate('poems')">Poems</a></li>
+        <li><a href="javascript:void(0)" onclick="navigate('prompts')">Prompts</a></li>
+        <li><a href="javascript:void(0)" onclick="navigate('profile')">Profile</a></li>
+        <li><a href="javascript:void(0)" onclick="navigate('engage')">Engage</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <div id="authArea">
+          <button class="nav-btn" id="registerBtn">Register</button>
+          <button class="nav-btn filled" id="loginBtn">Login</button>
+        </div>
+        <div id="userArea">
+          <img id="currentAvatar" class="nav-avatar" src="./Img/Logo.jpg" alt="Profile picture" />
+          <span id="currentUser" class="user-badge"></span>
+          <button class="nav-btn" id="adminBtn">Admin</button>
+          <button class="nav-btn" id="logoutBtn">Logout</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Home Section -->
+    <main id="homeSection" class="section active">
+      <div class="hero">
+        <h1>Where Poetry Meets Passion</h1>
+        <p id="heroSlideText">Every idea is a spark. Write it into existence.</p>
+      </div>
+
+      <div class="search-bar-wrap">
+        <input id="mainSearch" type="search" placeholder="Search writers, titles, and poems..." aria-label="Search writings" />
+      </div>
+
+      <div class="ad-banner" id="adBanner">
+        <strong>Sponsored</strong> • Upgrade to Go Pro for an ad-free experience and premium writing
+        perks.
+      </div>
+
+      <div class="prompt-panel">
+        <div class="prompt-card">
+          <div class="prompt-label">Writing Prompt</div>
+          <p id="promptText">Need inspiration? Shuffle the prompt to get a new creative spark.</p>
+          <div class="prompt-actions">
+            <button class="btn primary" id="shufflePromptBtn">Shuffle Prompt</button>
+            <button class="btn" id="seeMorePromptsBtn">More Prompts</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="home-highlights">
+        <div class="highlight-card">
+          <h3>100 days of creative energy</h3>
+          <p>Choose a challenge, write every day, and build a rhythm that lasts.</p>
+        </div>
+        <div class="highlight-card">
+          <h3>Real writer momentum</h3>
+          <p>Track your progress, share your work, and find fresh inspiration with every click.</p>
+        </div>
+        <div class="highlight-card">
+          <h3>One place for your craft</h3>
+          <p>Poems, challenges, prompts, and streaks all in the same creative workspace.</p>
+        </div>
+      </div>
+
+      <div class="container">
+        <section class="pricing-card" id="planCard" data-plan-id="go-pro">
+          <div class="price-header">
+            <div>
+              <div class="plan-badge">Premium plan</div>
+              <h3 class="plan-title">🚀 Go Pro</h3>
+            </div>
+            <p class="price" id="planPrice">$2.99<span>/month</span></p>
+          </div>
+          <div class="plan-status test" id="paystackModeLabel">Paystack test mode ready</div>
+          <p class="plan-description" id="planDescription">
+            Unlock analytics, priority tools, unlimited uploads, and the support writers need to
+            publish faster.
+          </p>
+          <ul class="features" id="planFeatures">
+            <li>✓ Unlimited uploads</li>
+            <li>✓ Growth analytics</li>
+            <li>✓ Priority features</li>
+            <li>✓ Ad-free experience</li>
+          </ul>
+          <button class="btn primary full-width" type="button" id="subscribeBtn">Subscribe with Paystack</button>
+        </section>
+
+        <section class="feed" id="poems">
+          <h3>📚 Latest Pieces</h3>
+          <div id="posts"></div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Prompts Section -->
+    <main id="promptsSection" class="section">
+      <div class="container">
+        <h2>Prompt Library</h2>
+        <p class="section-note">
+          Return often for a rotating set of sparks to start a story, poem, or reflection.
+        </p>
+        <div class="prompt-grid" id="promptGrid"></div>
+      </div>
+    </main>
+
+    <!-- Poems Section -->
+    <main id="poemsSection" class="section">
+      <div class="container">
+        <aside class="challenge-panel">
+          <div class="compose">
+            <h3>✨ Write Your Poem</h3>
+            <form id="postForm">
+              <div class="profile-card">
+                <div class="profile-preview">
+                  <img id="profilePicPreview" src="./Img/Logo.jpg" alt="Profile picture" />
+                  <div>
+                    <p><strong>Your profile picture</strong></p>
+                    <label for="profilePic" class="file-label small">
+                      <span class="icon">📷</span>
+                      <span class="text">Upload avatar</span>
+                    </label>
+                  </div>
+                </div>
+                <input type="file" id="profilePic" accept="image/*" />
+              </div>
+              <input type="text" id="title" placeholder="Your title..." maxlength="80" required />
+              <textarea
+                id="content"
+                placeholder="Let your words flow..."
+                rows="6"
+                required
+              ></textarea>
+              <div class="file-upload-wrapper">
+                <input type="file" id="image" accept="image/*" />
+                <label for="image" class="file-label">
+                  <span class="icon">🖼</span>
+                  <span class="text">Add an image</span>
+                </label>
+              </div>
+              <div class="challenge-card">
+                <h4>Writing Challenge</h4>
+                <p>Pick your daily writing goal and keep your streak burning.</p>
+                <div class="challenge-row">
+                  <label for="challengeSelect" class="sr-only">Challenge length</label>
+                  <select id="challengeSelect">
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                    <option value="30">30 days</option>
+                    <option value="100">100 days</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  <input
+                    type="number"
+                    id="customChallenge"
+                    min="1"
+                    max="365"
+                    placeholder="Custom"
+                    value="100"
+                  />
+                </div>
+                <p class="challenge-summary">Goal: <strong id="challengeValue">100</strong> days</p>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn" id="saveDraftBtn">Save Draft</button>
+                <button type="submit" class="btn primary" id="publishBtn">Publish ✍️</button>
+                <button type="button" id="clearBtn" class="btn">Clear</button>
+              </div>
+            </form>
+          </div>
+        </aside>
+        <section class="poem-content">
+          <div class="section-header">
+            <h2>Poetry Workshop</h2>
+            <p>
+              Practice slides, choose your challenge, and browse the latest poems from the
+              community.
+            </p>
+            <div class="challenge-banner">
+              Current goal: <span id="currentChallenge">100</span> days
+            </div>
+          </div>
+          <div class="grid" id="poemsGrid"></div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Profile Section -->
+    <main id="profileSection" class="section">
+      <div class="container profile-layout">
+        <aside class="compose profile-pane">
+          <h3>Writer Profile</h3>
+          <div class="profile-card">
+            <div class="profile-preview">
+              <img id="profileSummaryAvatar" src="./Img/Logo.jpg" alt="Profile avatar" />
+              <div>
+                <p><strong id="profileSummaryName">Your name</strong></p>
+                <p id="profileSummaryUsername">@username</p>
+              </div>
+            </div>
+          </div>
+          <form id="profileForm">
+            <input id="profileDisplayName" type="text" placeholder="Display name" />
+            <textarea id="profileBio" rows="4" placeholder="Your bio..."></textarea>
+            <div class="file-upload-wrapper">
+              <input id="profileAvatarInput" type="file" accept="image/*" />
+              <label for="profileAvatarInput" class="file-label">
+                <span class="icon">📷</span>
+                <span class="text">Update avatar</span>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn primary">Save Profile</button>
+            </div>
+          </form>
+        </aside>
+
+        <section class="poem-content">
+          <div class="section-header">
+            <h2>Writer Dashboard</h2>
+            <p>Track your creative momentum, saved reads, and the community you’re building.</p>
+            <div class="writer-metrics">
+              <div class="metric-pill accent-purple">
+                <span>Published</span>
+                <strong id="writerPublishedCount">0</strong>
+              </div>
+              <div class="metric-pill accent-rose">
+                <span>Drafts</span>
+                <strong id="writerDraftCount">0</strong>
+              </div>
+              <div class="metric-pill accent-gold">
+                <span>Followers</span>
+                <strong id="writerFollowersCount">0</strong>
+              </div>
+              <div class="metric-pill accent-blue">
+                <span>Following</span>
+                <strong id="writerFollowingCount">0</strong>
+              </div>
+              <div class="metric-pill accent-green">
+                <span>Saved</span>
+                <strong id="writerSavedCount">0</strong>
+              </div>
+            </div>
+
+            <div class="writer-overview">
+              <div class="overview-card">
+                <span>Creative momentum</span>
+                <strong id="writerMomentumValue">0</strong>
+                <small>pieces this month</small>
+              </div>
+              <div class="overview-card">
+                <span>Current status</span>
+                <strong id="writerStatusValue">Free</strong>
+                <small id="writerStatusNote">Upgrade for premium tools</small>
+              </div>
+              <div class="overview-card">
+                <span>Reading list</span>
+                <strong id="writerSavedValue">0</strong>
+                <small>saved works</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="writer-panels">
+            <div class="writer-panel">
+              <h3>Drafts</h3>
+              <div id="draftList" class="mini-list"></div>
+            </div>
+            <div class="writer-panel">
+              <h3>Saved Reading List</h3>
+              <div id="savedList" class="mini-list"></div>
+            </div>
+          </div>
+
+          <div class="writer-storyboard">
+            <div class="story-panel">
+              <h3>Creative focus</h3>
+              <div class="progress-block">
+                <div class="progress-meta">
+                  <span>Weekly writing pace</span>
+                  <strong>68%</strong>
+                </div>
+                <div class="progress-track"><span style="width: 68%"></span></div>
+              </div>
+              <div class="progress-block">
+                <div class="progress-meta">
+                  <span>Audience growth</span>
+                  <strong>82%</strong>
+                </div>
+                <div class="progress-track"><span style="width: 82%"></span></div>
+              </div>
+            </div>
+            <div class="story-panel">
+              <h3>Next milestone</h3>
+              <p>Publish 3 more stories to unlock your reader streak and reach the next growth tier.</p>
+              <button class="btn primary" type="button" id="writerBoostBtn">Boost my next post</button>
+            </div>
+          </div>
+
+          <div class="support-chat-panel">
+            <div class="section-header small-header">
+              <h2>Writer Support</h2>
+              <p>Talk to the INKurgic team about publishing, billing, or account help.</p>
+            </div>
+            <div class="support-chat-shell">
+              <div class="support-chat-messages" id="supportChatMessages"></div>
+              <form id="supportChatForm" class="support-chat-form">
+                <input id="supportChatInput" type="text" maxlength="240" placeholder="Ask the team for help..." />
+                <button class="btn primary" type="submit">Send</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="section-header small-header">
+            <h2>Discover Writers</h2>
+            <p>Follow writers whose work speaks to your voice and rhythm.</p>
+          </div>
+          <div class="grid" id="writersList"></div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Streak Section -->
+    <main id="engageSection" class="section">
+      <div class="container">
+        <h2>Streak Forge</h2>
+        <div class="engage-content" id="engageContent"></div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-content">
+        <p>© 2026 INKurgicv1.0 — Built for poets, by poets</p>
+        <p class="footer-tagline">Where every word matters</p>
+      </div>
+    </footer>
+
+    <button id="supportChatFab" class="chat-fab" type="button" aria-label="Open support chat">💬</button>
+
+    <div class="modal hidden" id="supportChatModal">
+      <div class="sheet ember-chat-modal">
+        <div class="modal-header compact-header">
+          <h4>Writer Support</h4>
+          <button type="button" class="close-modal chat-close" data-close-modal="supportChatModal">✕</button>
+        </div>
+        <div class="support-chat-shell">
+          <div class="support-chat-messages" id="supportChatModalMessages"></div>
+          <form id="supportChatModalForm" class="support-chat-form">
+            <input id="supportChatModalInput" type="text" maxlength="240" placeholder="Tell us what you need help with..." />
+            <button class="btn primary" type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="regModal">
+      <div class="sheet">
+        <h4>Register</h4>
+        <form id="regForm">
+          <input id="regUser" type="text" placeholder="Username" required />
+          <input id="regName" type="text" placeholder="Display name" required />
+          <input id="regEmail" type="email" placeholder="Email address" required />
+          <div class="file-upload-wrapper">
+            <input id="regAvatar" type="file" accept="image/*" />
+            <label for="regAvatar" class="file-label">
+              <span class="icon">📸</span>
+              <span class="text">Profile picture (optional)</span>
+            </label>
+          </div>
+          <div class="input-with-toggle">
+            <input id="regPass" type="password" placeholder="Password" required />
+            <button type="button" class="toggle-eye" id="regPassToggle">👁</button>
+          </div>
+          <div class="input-with-toggle">
+            <input id="regConfirm" type="password" placeholder="Confirm password" required />
+            <button type="button" class="toggle-eye" id="regConfirmToggle">👁</button>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn close-modal">Cancel</button>
+            <button type="submit" class="btn primary">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="logModal">
+      <div class="sheet">
+        <h4>Login</h4>
+        <form id="logForm">
+          <input id="logUser" type="text" placeholder="Username or email" required />
+          <div class="input-with-toggle">
+            <input id="logPass" type="password" placeholder="Password" required />
+            <button type="button" class="toggle-eye" id="logPassToggle">👁</button>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn close-modal">Cancel</button>
+            <button type="submit" class="btn primary">Login</button>
+          </div>
+          <div style="margin-top:8px; text-align:right;">
+            <a href="javascript:void(0)" id="forgotPasswordLink" style="font-size:13px; color:var(--primary);">Forgot password?</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="emailModal">
+      <div class="sheet email-preview">
+        <img class="email-image" src="./Img/Logo.jpg" alt="INKurgic welcome image" />
+        <h4 class="email-subject">Welcome to INKurgic</h4>
+        <div class="email-body"></div>
+        <div class="form-actions email-actions">
+          <button type="button" class="btn primary close-modal">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="ink.js"></script>
+  </body>
+</html>

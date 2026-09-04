@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>INKurgic Admin</title>
+    <link rel="stylesheet" href="../ink.css" />
+    <link rel="stylesheet" href="admin.css" />
+    <link rel="icon" href="../Img/Logo.jpg" type="image/icon" />
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="brand">
+        <img src="../Img/Logo.jpg" alt="INKurgic Logo" class="brand-img" />
+        <h2 class="logo">INKurgic Admin</h2>
+      </div>
+      <div class="nav-actions">
+        <a class="nav-btn filled" href="../index.html">Back to Site</a>
+      </div>
+    </nav>
+
+    <main class="admin-dashboard admin-page">
+      <div class="admin-header-row">
+        <div>
+          <p class="eyebrow">Operations</p>
+          <h2>Admin Control Center</h2>
+        </div>
+        <div class="header-actions">
+          <button class="btn" id="refreshAdminBtn">Refresh data</button>
+          <a class="btn primary" href="../index.html">Back to site</a>
+        </div>
+      </div>
+
+      <div class="admin-stats">
+        <div class="stat-card accent-purple">
+          <div class="stat-value" id="adminUserCount">0</div>
+          <div class="stat-label">Writers</div>
+        </div>
+        <div class="stat-card accent-rose">
+          <div class="stat-value" id="adminPaidCount">0</div>
+          <div class="stat-label">Paid Members</div>
+        </div>
+        <div class="stat-card accent-gold">
+          <div class="stat-value" id="adminPublishedCount">0</div>
+          <div class="stat-label">Published Works</div>
+        </div>
+        <div class="stat-card accent-blue">
+          <div class="stat-value" id="adminFollowerCount">0</div>
+          <div class="stat-label">Total Followers</div>
+        </div>
+        <div class="stat-card accent-green">
+          <div class="stat-value" id="adminNotificationCount">0</div>
+          <div class="stat-label">Notifications</div>
+        </div>
+      </div>
+
+      <div class="admin-grid">
+        <div class="admin-section-box large-span">
+          <h3>Performance Snapshot</h3>
+          <div id="adminOverviewList" class="overview-list"></div>
+        </div>
+
+        <div class="admin-section-box">
+          <h3>Homepage & Plan Controls</h3>
+          <div class="admin-form-row">
+            <label for="heroText">Homepage motivation text</label>
+            <textarea id="heroText" rows="3"></textarea>
+          </div>
+          <div class="admin-form-row">
+            <label for="planDesc">Plan description</label>
+            <textarea id="planDesc" rows="4"></textarea>
+          </div>
+          <button class="btn primary" id="saveSettingsBtn">Save Homepage Settings</button>
+        </div>
+
+        <div class="admin-section-box">
+          <h3>Recent Writings</h3>
+          <div id="writingsList" class="compact-list"></div>
+        </div>
+
+        <div class="admin-section-box">
+          <h3>Pending Payments</h3>
+          <div id="approvalsList"></div>
+        </div>
+
+        <div class="admin-section-box large-span">
+          <h3>Writer Accounts</h3>
+          <div id="usersList"></div>
+        </div>
+
+        <div class="admin-section-box">
+          <h3>Live Inbox</h3>
+          <div style="display:flex; gap:12px; flex-direction:column;">
+            <div style="width:100%;">
+              <div id="chatUsersList" style="max-height:300px; overflow:auto;"></div>
+            </div>
+            <div style="flex:1;">
+              <div id="chatWindow">
+                <p style="color:#666;">Select a conversation to view messages.</p>
+              </div>
+              <div id="chatReply" style="margin-top:10px; display:none;">
+                <textarea id="replyText" rows="3" style="width:100%; padding:8px;"></textarea>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+                  <button class="btn" id="closeConvBtn">Close</button>
+                  <button class="btn primary" id="sendReplyBtn">Send as Ember</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="admin.js"></script>
+  </body>
+</html>
