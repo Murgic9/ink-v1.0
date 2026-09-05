@@ -69,6 +69,7 @@ function getToken() {
 
 function setCurrentUser(user) {
   state.currentUser = user;
+  state.selectedAvatar = user?.avatar || '';
   if (user) {
     writeStorage(userKey, user);
   } else {
@@ -324,6 +325,7 @@ function renderProfileSummary() {
   const writerSavedValue = document.getElementById('writerSavedValue');
 
   if (!user) {
+    state.selectedAvatar = '';
     if (profileSummaryName) profileSummaryName.textContent = 'Your name';
     if (profileSummaryUsername) profileSummaryUsername.textContent = '@username';
     if (profileSummaryAvatar) profileSummaryAvatar.src = './Img/Logo.jpg';
@@ -340,9 +342,12 @@ function renderProfileSummary() {
 
   if (profileSummaryName) profileSummaryName.textContent = user.displayName || user.username;
   if (profileSummaryUsername) profileSummaryUsername.textContent = `@${user.username}`;
-  if (profileSummaryAvatar) profileSummaryAvatar.src = user.avatar || './Img/Logo.jpg';
+  if (profileSummaryAvatar) profileSummaryAvatar.src = state.selectedAvatar || user.avatar || './Img/Logo.jpg';
   if (profileDisplayName) profileDisplayName.value = user.displayName || '';
   if (profileBio) profileBio.value = user.bio || '';
+  document.querySelectorAll('.avatar-option').forEach((option) => {
+    option.classList.toggle('selected', option.dataset.avatar === (state.selectedAvatar || user.avatar));
+  });
 
   const publishedCount = document.getElementById('writerPublishedCount');
   const draftCount = document.getElementById('writerDraftCount');
@@ -1175,8 +1180,18 @@ function bindEvents() {
   document.querySelectorAll('.avatar-option').forEach((option) => {
     option.addEventListener('click', () => selectAvatar(option.dataset.avatar));
   });
-  document.getElementById('profileAvatarInput')?.addEventListener('change', () => {
-    state.selectedAvatar = '';
+  document.getElementById('profileAvatarInput')?.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      state.selectedAvatar = await readFileAsDataUrl(file);
+      const preview = document.getElementById('profileSummaryAvatar');
+      if (preview) preview.src = state.selectedAvatar;
+      document.querySelectorAll('.avatar-option').forEach((option) => option.classList.remove('selected'));
+    } catch (error) {
+      event.target.value = '';
+      showToast(error.message || 'Unable to preview this profile image.', 'error');
+    }
   });
   document.getElementById('supportChatForm')?.addEventListener('submit', submitSupportChat);
   document.getElementById('supportChatModalForm')?.addEventListener('submit', submitSupportChat);

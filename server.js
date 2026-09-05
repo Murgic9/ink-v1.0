@@ -82,6 +82,14 @@ async function sendEmail({ to, subject, text }) {
   return true;
 }
 
+function sendUserEmail(user, subject, text) {
+  if (!user?.email) return Promise.resolve(false);
+  return sendEmail({ to: user.email, subject, text }).catch((error) => {
+    console.error(`Email delivery error for ${user.email}:`, error.message);
+    return false;
+  });
+}
+
 function ensureAdminAccount() {
   const store = readStore();
   const admin = store.users.find((user) => user.isAdmin) || store.users[0];
@@ -398,7 +406,7 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   return res.json({ user: sanitizeUser(user) });
 });
 
-app.put('/api/users/me', requireAuth, (req, res) => {
+app.put('/api/users/me', requireAuth, async (req, res) => {
   const { displayName, bio, avatar } = req.body || {};
   const store = readStore();
   const index = store.users.findIndex((user) => user.id === req.user.id);
@@ -423,6 +431,7 @@ app.put('/api/users/me', requireAuth, (req, res) => {
   };
 
   writeStore(store);
+  await sendUserEmail(store.users[index], 'Your INKurgic profile was updated', `Hi ${store.users[index].displayName || store.users[index].username}, your profile details or profile image were updated successfully.`);
   return res.json({ user: sanitizeUser(store.users[index]) });
 });
 
@@ -452,7 +461,7 @@ app.get('/api/users/:id', (req, res) => {
   return res.json({ user: sanitizeUser(user) });
 });
 
-app.post('/api/users/:id/follow', requireAuth, (req, res) => {
+app.post('/api/users/:id/follow', requireAuth, async (req, res) => {
   const { id } = req.params;
   const store = readStore();
   const currentUser = store.users.find((user) => user.id === req.user.id);
@@ -481,6 +490,10 @@ app.post('/api/users/:id/follow', requireAuth, (req, res) => {
   }
 
   writeStore(store);
+
+  if (!isFollowing) {
+    await sendUserEmail(targetUser, 'You have a new INKurgic follower', `${currentUser.displayName || currentUser.username} started following you on INKurgic.`);
+  }
 
   return res.json({
     following: currentUser.following.includes(id),
@@ -531,7 +544,7 @@ app.get('/api/writings/:id', (req, res) => {
   return res.json({ writing: serializeWriting(writing, store) });
 });
 
-app.post('/api/writings', requireAuth, (req, res) => {
+app.post('/api/writings', requireAuth, async (req, res) => {
   try {
     const { title, content, category = 'poetry', tags = [], image = '', status = 'published' } = req.body || {};
 
@@ -566,6 +579,7 @@ app.post('/api/writings', requireAuth, (req, res) => {
 
     store.writings.unshift(writing);
     writeStore(store);
+    await sendUserEmail(author, writing.status === 'draft' ? 'Your INKurgic draft was saved' : 'Your writing is live on INKurgic', `Your writing "${writing.title}" was ${writing.status === 'draft' ? 'saved as a draft' : 'published'} successfully.`);
     return res.status(201).json({ writing });
   } catch (error) {
     console.error('Create writing error:', error);
@@ -573,7 +587,7 @@ app.post('/api/writings', requireAuth, (req, res) => {
   }
 });
 
-app.put('/api/writings/:id', requireAuth, (req, res) => {
+app.put('/api/writings/:id', requireAuth, async (req, res) => {
   const store = readStore();
   const writing = store.writings.find((post) => post.id === req.params.id);
 
@@ -599,10 +613,12 @@ app.put('/api/writings/:id', requireAuth, (req, res) => {
   writing.updatedAt = new Date().toISOString();
 
   writeStore(store);
+  const author = store.users.find((user) => user.id === writing.authorId);
+  await sendUserEmail(author, 'Your INKurgic writing was updated', `Your writing "${writing.title}" was updated successfully.`);
   return res.json({ writing });
 });
 
-app.delete('/api/writings/:id', requireAuth, (req, res) => {
+app.delete('/api/writings/:id', requireAuth, async (req, res) => {
   const store = readStore();
   const writingIndex = store.writings.findIndex((post) => post.id === req.params.id);
 
@@ -617,10 +633,12 @@ app.delete('/api/writings/:id', requireAuth, (req, res) => {
 
   store.writings.splice(writingIndex, 1);
   writeStore(store);
+  const author = store.users.find((user) => user.id === writing.authorId);
+  await sendUserEmail(author, 'Your INKurgic writing was deleted', `Your writing "${writing.title}" was deleted from INKurgic.`);
   return res.json({ message: 'Writing deleted successfully.' });
 });
 
-app.post('/api/writings/:id/like', requireAuth, (req, res) => {
+app.post('/api/writings/:id/like', requireAuth, async (req, res) => {
   const store = readStore();
   const writing = store.writings.find((post) => post.id === req.params.id);
 
@@ -637,14 +655,14 @@ app.post('/api/writings/:id/like', requireAuth, (req, res) => {
 
     const author = store.users.find((user) => user.id === writing.authorId);
     if (author && author.id !== req.user.id) {
-      store.notifications.unshift(
-        buildNotification({
+      const notification = buildNotification({
           userId: author.id,
           type: 'like',
           message: `${req.user.username} liked your writing.`,
           relatedId: writing.id,
-        })
-      );
+        });
+      store.notifications.unshift(notification);
+      await sendUserEmail(author, 'Someone liked your INKurgic writing', notification.message);
     }
   }
 
@@ -652,7 +670,7 @@ app.post('/api/writings/:id/like', requireAuth, (req, res) => {
   return res.json({ likes: writing.likes.length, liked: !hasLiked });
 });
 
-app.post('/api/writings/:id/comment', requireAuth, (req, res) => {
+app.post('/api/writings/:id/comment', requireAuth, async (req, res) => {
   const { text } = req.body || {};
   const store = readStore();
   const writing = store.writings.find((post) => post.id === req.params.id);
@@ -678,14 +696,14 @@ app.post('/api/writings/:id/comment', requireAuth, (req, res) => {
 
   const targetAuthor = store.users.find((user) => user.id === writing.authorId);
   if (targetAuthor && targetAuthor.id !== req.user.id) {
-    store.notifications.unshift(
-      buildNotification({
+    const notification = buildNotification({
         userId: targetAuthor.id,
         type: 'comment',
         message: `${author ? author.displayName : req.user.username} commented on your writing.`,
         relatedId: writing.id,
-      })
-    );
+      });
+    store.notifications.unshift(notification);
+    await sendUserEmail(targetAuthor, 'Someone commented on your INKurgic writing', notification.message);
   }
 
   writeStore(store);
@@ -910,7 +928,7 @@ app.get('/api/streak', requireAuth, (req, res) => {
   return res.json({ streak: user.streak || { goal: 100, current: 0, best: 0, checkIns: [] } });
 });
 
-app.post('/api/streak/check-in', requireAuth, (req, res) => {
+app.post('/api/streak/check-in', requireAuth, async (req, res) => {
   const store = readStore();
   const user = store.users.find((item) => item.id === req.user.id);
   if (!user) return res.status(404).json({ message: 'User not found.' });
@@ -926,10 +944,11 @@ app.post('/api/streak/check-in', requireAuth, (req, res) => {
   streak.checkIns.push(today);
   user.streak = streak;
   writeStore(store);
+  await sendUserEmail(user, 'Your INKurgic streak was updated', `You checked in today and reached a ${streak.current}-day writing streak.`);
   return res.json({ streak, alreadyCheckedIn: false });
 });
 
-app.patch('/api/streak', requireAuth, (req, res) => {
+app.patch('/api/streak', requireAuth, async (req, res) => {
   const goal = Number(req.body?.goal);
   if (!Number.isInteger(goal) || goal < 1 || goal > 365) return res.status(400).json({ message: 'Choose a goal between 1 and 365 days.' });
   const store = readStore();
@@ -937,6 +956,7 @@ app.patch('/api/streak', requireAuth, (req, res) => {
   if (!user) return res.status(404).json({ message: 'User not found.' });
   user.streak = { ...(user.streak || { current: 0, best: 0, checkIns: [] }), goal };
   writeStore(store);
+  await sendUserEmail(user, 'Your INKurgic writing goal changed', `Your writing streak goal is now ${goal} days.`);
   return res.json({ streak: user.streak });
 });
 

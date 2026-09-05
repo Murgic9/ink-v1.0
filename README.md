@@ -52,6 +52,8 @@ Important: the included store is file-backed. Render services have ephemeral fil
 
 Gmail delivery will be skipped with a server warning when SMTP variables are absent. That is useful locally, but production must have SMTP configured for welcome, login, reset, and Ember-reply emails.
 
+Meaningful account, profile, writing, social, and streak updates are also routed to the registered user's email address. See [PERSONA.md](PERSONA.md) for the product voice and answers to common project questions.
+
 After deployment, verify `https://your-render-url.onrender.com/api/health`, registration, login, writing creation/deletion, and support chat. Configure `CLIENT_URL` after the final public URL is known.
 
 ## Notes
