@@ -31,6 +31,18 @@
         </div>
       </div>
 
+      <section class="admin-command-bar">
+        <div>
+          <p class="eyebrow">Admin advantage</p>
+          <h3>Unlimited editorial workspace</h3>
+          <p>Admin accounts have premium access automatically. Review the community, shape the front page, and keep every conversation moving.</p>
+        </div>
+        <div class="admin-command-actions">
+          <span class="admin-access-badge">Premium access: unlimited</span>
+          <button class="btn primary" id="focusInboxBtn" type="button">Open live inbox</button>
+        </div>
+      </section>
+
       <div class="admin-stats">
         <div class="stat-card accent-purple">
           <div class="stat-value" id="adminUserCount">0</div>
@@ -83,9 +95,24 @@
           <div id="approvalsList"></div>
         </div>
 
+        <div class="admin-section-box">
+          <h3>Grant administrator access</h3>
+          <p class="admin-help">Enter a registered writer's email to give them admin and unlimited premium access.</p>
+          <form id="promoteAdminForm" class="admin-promote-form">
+            <input id="promoteAdminEmail" type="email" placeholder="writer@example.com" required />
+            <button class="btn primary" type="submit">Make administrator</button>
+          </form>
+          <p id="promoteAdminStatus" class="admin-form-status" role="status"></p>
+        </div>
+
         <div class="admin-section-box large-span">
           <h3>Writer Accounts</h3>
           <div id="usersList"></div>
+        </div>
+
+        <div class="admin-section-box large-span">
+          <h3>Editorial pulse</h3>
+          <div id="adminPulseGrid" class="admin-pulse-grid"></div>
         </div>
 
         <div class="admin-section-box">

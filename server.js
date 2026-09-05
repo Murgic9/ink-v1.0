@@ -103,6 +103,10 @@ function ensureAdminAccount() {
     admin.isAdmin = true;
     changed = true;
   }
+  if (!admin.isPaid) {
+    admin.isPaid = true;
+    changed = true;
+  }
   if (changed) writeStore(store);
 }
 
@@ -394,11 +398,15 @@ app.put('/api/users/me', requireAuth, (req, res) => {
     return res.status(404).json({ message: 'User not found.' });
   }
 
+  if (avatar !== undefined && avatar !== '' && (!/^data:image\/(jpeg|jpg|png|webp);base64,/.test(avatar) || avatar.length > 1500000)) {
+    return res.status(400).json({ message: 'Profile images must be JPEG, PNG, or WebP files smaller than 1 MB.' });
+  }
+
   store.users[index] = {
     ...store.users[index],
-    displayName: displayName || store.users[index].displayName,
-    bio: bio || store.users[index].bio,
-    avatar: avatar || store.users[index].avatar,
+    displayName: typeof displayName === 'string' && displayName.trim() ? displayName.trim() : store.users[index].displayName,
+    bio: typeof bio === 'string' && bio.trim() ? bio.trim() : store.users[index].bio,
+    avatar: avatar !== undefined ? avatar : store.users[index].avatar,
   };
 
   writeStore(store);
@@ -517,6 +525,10 @@ app.post('/api/writings', requireAuth, (req, res) => {
       return res.status(400).json({ message: 'Title and content are required.' });
     }
 
+    if (image && (!/^data:image\/(jpeg|jpg|png|webp);base64,/.test(String(image)) || String(image).length > 1500000)) {
+      return res.status(400).json({ message: 'Writing images must be JPEG, PNG, or WebP files smaller than 1 MB.' });
+    }
+
     const store = readStore();
     const writing = {
       id: `writing-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -559,7 +571,11 @@ app.put('/api/writings/:id', requireAuth, (req, res) => {
   writing.content = content || writing.content;
   writing.category = category || writing.category;
   writing.tags = tags || writing.tags;
-  writing.image = image !== undefined ? image : writing.image;
+  const nextImage = image !== undefined ? image : writing.image;
+  if (nextImage && (!/^data:image\/(jpeg|jpg|png|webp);base64,/.test(String(nextImage)) || String(nextImage).length > 1500000)) {
+    return res.status(400).json({ message: 'Writing images must be JPEG, PNG, or WebP files smaller than 1 MB.' });
+  }
+  writing.image = nextImage;
   writing.status = status || writing.status;
   writing.updatedAt = new Date().toISOString();
 
@@ -693,7 +709,9 @@ app.patch('/api/notifications/:id/read', requireAuth, (req, res) => {
 
 app.get('/api/support/messages', requireAuth, (req, res) => {
   const store = readStore();
-  const messages = (store.supportMessages || []).filter((message) => message.userId === req.user.id);
+  const messages = (store.supportMessages || [])
+    .filter((message) => message.userId === req.user.id)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   return res.json({ messages });
 });
 
@@ -719,16 +737,23 @@ app.post('/api/support/messages', requireAuth, (req, res) => {
 
 app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
   const store = readStore();
+  const writings = store.writings || [];
+  const supportMessages = store.supportMessages || [];
+  const activeStreaks = store.users.filter((user) => Number(user.streak?.current) > 0).length;
   return res.json({
     stats: {
       users: store.users.length,
       paidUsers: store.users.filter((user) => user.isPaid).length,
-      writings: store.writings.length,
+      writings: writings.length,
       notifications: store.notifications.length,
       followers: store.users.reduce((sum, user) => sum + (user.followers || []).length, 0),
+      drafts: writings.filter((writing) => writing.status === 'draft').length,
+      supportMessages: supportMessages.length,
+      activeStreaks,
+      admins: store.users.filter((user) => user.isAdmin).length,
     },
     users: store.users.map(sanitizeUser),
-    writings: store.writings,
+    writings,
     notifications: store.notifications,
     subscriptions: store.subscriptions || [],
   });
@@ -736,7 +761,7 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
 
 app.get('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) => {
   const store = readStore();
-  return res.json({ messages: store.supportMessages || [] });
+  return res.json({ messages: (store.supportMessages || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) });
 });
 
 app.post('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) => {
@@ -757,6 +782,14 @@ app.post('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) =>
     createdAt: new Date().toISOString(),
   };
   store.supportMessages.push(message);
+  writeStore(store);
+  store.notifications = store.notifications || [];
+  store.notifications.unshift(buildNotification({
+    userId,
+    type: 'support',
+    message: 'Ember replied to your support conversation.',
+    relatedId: message.id,
+  }));
   writeStore(store);
   sendEmail({
     to: user.email,
@@ -793,8 +826,30 @@ app.patch('/api/admin/users/:id/admin', requireAuth, requireAdmin, (req, res) =>
   }
 
   user.isAdmin = !user.isAdmin;
+  if (user.isAdmin) user.isPaid = true;
   writeStore(store);
   return res.json({ user: sanitizeUser(user) });
+});
+
+app.post('/api/admin/promote', requireAuth, requireAdmin, (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ message: 'Enter a valid email address.' });
+  }
+
+  const store = readStore();
+  const user = store.users.find((item) => item.email.toLowerCase() === email);
+  if (!user) return res.status(404).json({ message: 'No registered user found with that email.' });
+
+  user.isAdmin = true;
+  user.isPaid = true;
+  writeStore(store);
+  sendEmail({
+    to: user.email,
+    subject: 'You are now an INKurgic administrator',
+    text: `Your INKurgic account has been granted administrator access. Sign in again to open the Admin Control Center.`,
+  }).catch((error) => console.error('Admin promotion email error:', error.message));
+  return res.json({ message: `${user.displayName || user.username} is now an administrator.`, user: sanitizeUser(user) });
 });
 
 app.get('/api/prompts', (req, res) => {
@@ -857,6 +912,7 @@ app.patch('/api/streak', requireAuth, (req, res) => {
 app.post('/api/subscribe', requireAuth, async (req, res) => {
   const { planId = 'go-pro', reference } = req.body || {};
   const store = readStore();
+  store.subscriptions = Array.isArray(store.subscriptions) ? store.subscriptions : [];
   const user = store.users.find((item) => item.id === req.user.id);
 
   if (!user) {
@@ -865,6 +921,10 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
 
   if (!reference || !process.env.PAYSTACK_SECRET_KEY) {
     return res.status(400).json({ message: 'A verified Paystack transaction is required.' });
+  }
+
+  if ((store.subscriptions || []).some((subscription) => subscription.reference === String(reference))) {
+    return res.status(409).json({ message: 'This Paystack transaction has already been used.' });
   }
 
   try {
@@ -888,6 +948,7 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
     userId: user.id,
     planId,
     active: true,
+    reference: String(reference),
     createdAt: new Date().toISOString(),
   });
 

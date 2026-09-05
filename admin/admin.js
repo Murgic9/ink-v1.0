@@ -86,6 +86,26 @@ function renderOverview(data = {}) {
       <span>Followers</span>
       <strong>${stats.followers || 0}</strong>
     </div>
+    <div class="overview-row">
+      <span>Drafts in the studio</span>
+      <strong>${stats.drafts || 0}</strong>
+    </div>
+    <div class="overview-row">
+      <span>Active writing streaks</span>
+      <strong>${stats.activeStreaks || 0}</strong>
+    </div>
+  `;
+}
+
+function renderPulse(data = {}) {
+  const stats = data.stats || {};
+  const container = document.getElementById('adminPulseGrid');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="pulse-card"><span>Administrators</span><strong>${stats.admins || 0}</strong><small>trusted operators</small></div>
+    <div class="pulse-card"><span>Open conversations</span><strong>${stats.supportMessages || 0}</strong><small>support messages</small></div>
+    <div class="pulse-card"><span>Draft energy</span><strong>${stats.drafts || 0}</strong><small>pieces awaiting a spark</small></div>
+    <div class="pulse-card"><span>Premium members</span><strong>${stats.paidUsers || 0}</strong><small>unlocked accounts</small></div>
   `;
 }
 
@@ -209,7 +229,7 @@ async function renderChatUsers() {
     const item = document.createElement('div');
     item.className = 'approval-item';
     item.style.cursor = 'pointer';
-      item.innerHTML = `<div><strong>${escapeHtml(userId)}</strong><div class="meta">${userMessages.length} messages</div></div>`;
+      item.innerHTML = `<div><strong>${escapeHtml(userId)}</strong><div class="meta">${userMessages.length} messages</div></div><span class="status-pill published">Live</span>`;
       item.addEventListener('click', () => renderConversation(userId, messages));
     container.appendChild(item);
     });
@@ -270,6 +290,7 @@ async function loadAdminOverview() {
 
     renderStats(data);
     renderOverview(data);
+    renderPulse(data);
     renderUsers(data.users || []);
     renderWritings(data.writings || []);
     renderApprovals(data.subscriptions || []);
@@ -278,6 +299,7 @@ async function loadAdminOverview() {
     console.error('Admin overview error:', error);
     renderStats({ users: [], writings: [], notifications: [] });
     renderOverview({ stats: { users: 0, paidUsers: 0, writings: 0, followers: 0 } });
+    renderPulse({ stats: {} });
     renderUsers([]);
     renderWritings([]);
   }
@@ -313,14 +335,45 @@ async function toggleAdminUser(userId) {
   }
 }
 
+async function promoteAdmin(event) {
+  event.preventDefault();
+  const input = document.getElementById('promoteAdminEmail');
+  const status = document.getElementById('promoteAdminStatus');
+  const email = input?.value.trim();
+  if (!email) return;
+
+  try {
+    const data = await requestAdminJson('../api/admin/promote', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getAdminToken()}` },
+      body: JSON.stringify({ email }),
+    });
+    if (status) {
+      status.textContent = data.message;
+      status.className = 'admin-form-status success';
+    }
+    input.value = '';
+    await loadAdminOverview();
+  } catch (error) {
+    if (status) {
+      status.textContent = error.message || 'Unable to grant administrator access.';
+      status.className = 'admin-form-status error';
+    }
+  }
+}
+
 function bindAdminEvents() {
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
   const refreshBtn = document.getElementById('refreshAdminBtn');
   const closeBtn = document.getElementById('closeConvBtn');
   const sendBtn = document.getElementById('sendReplyBtn');
+  const promoteForm = document.getElementById('promoteAdminForm');
+  const inboxButton = document.getElementById('focusInboxBtn');
 
   if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', saveSettings);
   if (refreshBtn) refreshBtn.addEventListener('click', loadAdminOverview);
+  if (promoteForm) promoteForm.addEventListener('submit', promoteAdmin);
+  if (inboxButton) inboxButton.addEventListener('click', () => document.getElementById('chatUsersList')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
@@ -376,6 +429,9 @@ async function initAdminPage() {
   renderChatUsers();
   bindAdminEvents();
   await loadAdminOverview();
+  window.setInterval(() => {
+    renderChatUsers();
+  }, 10000);
 }
 
 window.addEventListener('DOMContentLoaded', initAdminPage);

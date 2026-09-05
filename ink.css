@@ -1207,6 +1207,22 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+.writing-image-preview,
+.writing-card-image {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.writing-image-preview {
+  max-width: 100%;
+  width: min(100%, 360px);
+  margin-bottom: 4px;
+}
+
 .reactions {
   display: flex;
   gap: 8px;

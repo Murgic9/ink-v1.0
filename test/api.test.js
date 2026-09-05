@@ -78,4 +78,12 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
 
   const overview = await request('/admin/overview', { headers: { Authorization: `Bearer ${admin.token}` } });
   assert.ok(overview.stats.users >= 2);
+
+  const promoted = await request('/admin/promote', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${admin.token}` },
+    body: JSON.stringify({ email }),
+  });
+  assert.equal(promoted.user.isAdmin, true);
+  assert.equal(promoted.user.isPaid, true);
 });

@@ -535,7 +535,7 @@ function renderPosts() {
         </div>
         <h4>${escapeHtml(post.title)}</h4>
         <p>${escapeHtml(post.content.slice(0, 220))}${post.content.length > 220 ? '…' : ''}</p>
-        ${post.image ? `<img class="full" src="${post.image}" alt="${escapeHtml(post.title)}" />` : ''}
+        ${post.image ? `<img class="full" src="${escapeHtml(post.image)}" alt="${escapeHtml(post.title)}" />` : ''}
         <div class="reactions">
           <button class="react-btn" data-like="${post.id}">♥ ${post.likesCount || post.likes?.length || 0}</button>
           <button class="react-btn" data-comment="${post.id}" type="button">💬 ${post.commentsCount || comments.length}</button>
@@ -573,6 +573,7 @@ function renderPosts() {
       item.className = 'post-card';
       item.innerHTML = `
         <h3>${escapeHtml(post.title)}</h3>
+        ${post.image ? `<img class="writing-card-image" src="${escapeHtml(post.image)}" alt="${escapeHtml(post.title)}" />` : ''}
         <p>${escapeHtml(post.content.slice(0, 180))}${post.content.length > 180 ? '…' : ''}</p>
         <div class="meta">
           <span>${escapeHtml(post.category || 'poetry')}</span>
@@ -708,8 +709,22 @@ function updateChallengeSummary() {
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     if (!file) return resolve('');
+    if (!file.type.startsWith('image/')) return reject(new Error('Please choose an image file.'));
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const maxSize = 480;
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      image.onerror = () => reject(new Error('Unable to process the selected image.'));
+      image.src = String(reader.result || '');
+    };
     reader.onerror = () => reject(new Error('Unable to read the selected file.'));
     reader.readAsDataURL(file);
   });
@@ -733,6 +748,8 @@ async function saveDraft(event) {
   }
 
   try {
+    const fileInput = document.getElementById('image');
+    const image = fileInput?.files?.[0] ? await readFileAsDataUrl(fileInput.files[0]) : '';
     await requestJson(`${API_BASE}/writings`, {
       method: 'POST',
       headers: attachAuthHeaders(),
@@ -740,6 +757,7 @@ async function saveDraft(event) {
         title: title || 'Untitled Draft',
         content: content || 'Draft saved from INKurgic.',
         category: 'poetry',
+        image,
         status: 'draft',
       }),
     });
@@ -815,6 +833,11 @@ async function handleProfileSave(event) {
     setCurrentUser(data.user);
     renderProfileSummary();
     renderWriterList();
+    if (avatar !== undefined) {
+      document.querySelectorAll('.brand-img, #currentAvatar').forEach((image) => {
+        image.src = data.user.avatar || './Img/Logo.jpg';
+      });
+    }
     showToast('Profile updated.', 'success');
   } catch (error) {
     showToast(error.message || 'Unable to update profile.', 'error');
@@ -959,6 +982,9 @@ async function subscribeToPlan() {
       showToast(data.message || 'Go Pro is active for your account.', 'success');
     } catch (error) {
       showToast(error.message || 'Subscription failed.', 'error');
+    } finally {
+      const button = document.getElementById('subscribeBtn');
+      if (button) button.disabled = false;
     }
   };
 
@@ -973,6 +999,13 @@ async function subscribeToPlan() {
     return;
   }
 
+  if (!Number.isInteger(planAmount) || planAmount <= 0 || !window.PAYSTACK_CURRENCY) {
+    showToast('Payment settings are incomplete. Please contact the administrator.', 'error');
+    return;
+  }
+
+  const button = document.getElementById('subscribeBtn');
+  if (button) button.disabled = true;
   const handler = window.PaystackPop.setup({
     key,
     email: user.email || 'writer@inkurgic.com',
@@ -983,6 +1016,7 @@ async function subscribeToPlan() {
       callback(transaction);
     },
     onClose: function () {
+      if (button) button.disabled = false;
       showToast('Payment window closed. Your account was not charged.', 'info');
     },
   });
@@ -1070,6 +1104,22 @@ function bindEvents() {
   });
   document.getElementById('saveDraftBtn')?.addEventListener('click', saveDraft);
   document.getElementById('clearBtn')?.addEventListener('click', () => document.getElementById('postForm').reset());
+  document.getElementById('image')?.addEventListener('change', async (event) => {
+    const preview = document.getElementById('writingImagePreview');
+    const file = event.target.files?.[0];
+    if (!preview || !file) {
+      if (preview) preview.hidden = true;
+      return;
+    }
+    try {
+      preview.src = await readFileAsDataUrl(file);
+      preview.hidden = false;
+    } catch (error) {
+      event.target.value = '';
+      preview.hidden = true;
+      showToast(error.message || 'Unable to preview this image.', 'error');
+    }
+  });
   document.getElementById('profileForm')?.addEventListener('submit', handleProfileSave);
   document.getElementById('supportChatForm')?.addEventListener('submit', submitSupportChat);
   document.getElementById('supportChatModalForm')?.addEventListener('submit', submitSupportChat);

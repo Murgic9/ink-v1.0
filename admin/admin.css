@@ -27,6 +27,99 @@
   gap: 10px;
 }
 
+.admin-command-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(120deg, #152a28, #27665a);
+  color: white;
+  box-shadow: var(--shadow);
+}
+
+.admin-command-bar .eyebrow,
+.admin-command-bar h3,
+.admin-command-bar p {
+  color: white;
+}
+
+.admin-command-bar h3 {
+  margin: 0 0 8px;
+  font-family: "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: 24px;
+}
+
+.admin-command-bar p:last-child {
+  max-width: 680px;
+  margin: 0;
+  opacity: 0.84;
+}
+
+.admin-command-actions {
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.admin-access-badge {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-help {
+  color: #65706d;
+  line-height: 1.6;
+}
+
+.admin-promote-form {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-promote-form input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.admin-form-status {
+  min-height: 20px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.admin-form-status.success { color: #187957; }
+.admin-form-status.error { color: #b33c3c; }
+
+.admin-pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pulse-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f6f9f8;
+}
+
+.pulse-card span { color: #52605c; font-size: 13px; }
+.pulse-card strong { color: var(--dark); font-size: 30px; }
+.pulse-card small { color: #7d8985; }
+
 .admin-page h2 {
   font-size: 32px;
   margin: 0;
@@ -241,6 +334,10 @@
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .admin-command-bar { align-items: flex-start; flex-direction: column; }
+  .admin-command-actions { justify-items: start; }
+  .admin-pulse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .admin-page {
