@@ -1325,7 +1325,7 @@ async function initApp() {
   renderAuthState();
   renderPromptCard();
   updateChallengeSummary();
-  await loadPaystackConfig();
+  loadPaystackConfig();
   await loadSession();
   await loadPrompts();
   await loadUsers();

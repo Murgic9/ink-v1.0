@@ -985,9 +985,13 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
   }
 
   try {
+    const verificationController = new AbortController();
+    const verificationTimeout = setTimeout(() => verificationController.abort(), 10000);
     const verification = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
       headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+      signal: verificationController.signal,
     });
+    clearTimeout(verificationTimeout);
     const result = await verification.json();
     const expectedAmount = Number(process.env.PAYSTACK_AMOUNT || 299);
     const expectedCurrency = String(process.env.PAYSTACK_CURRENCY || 'USD').toUpperCase();
@@ -996,7 +1000,7 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
     }
   } catch (error) {
     console.error('Paystack verification error:', error.message);
-    return res.status(502).json({ message: 'Payment verification is temporarily unavailable.' });
+    return res.status(504).json({ message: 'Payment verification took too long. Please try again; your payment reference remains safe to verify.' });
   }
 
   user.isPaid = true;
