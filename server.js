@@ -25,16 +25,13 @@ const app = express();
 const PORT = Number(process.env.PORT || 5000);
 const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || 'inkurgic@gmail.com').trim().toLowerCase();
 const CLIENT_URL = String(process.env.CLIENT_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+const SUPPORT_NAME = String(process.env.SUPPORT_NAME || 'Luma').trim();
 
 function validateProductionEnvironment() {
   if (process.env.NODE_ENV !== 'production') return;
 
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     throw new Error('JWT_SECRET must be set to a strong value in production.');
-  }
-
-  if (!process.env.PAYSTACK_PUBLIC_KEY || !process.env.PAYSTACK_SECRET_KEY) {
-    throw new Error('Paystack keys must be configured in production.');
   }
 
   if (!process.env.DATA_DIR) {
@@ -93,6 +90,10 @@ function ensureAdminAccount() {
   let changed = false;
   if (admin.email !== ADMIN_EMAIL) {
     admin.email = ADMIN_EMAIL;
+    changed = true;
+  }
+  if (admin.displayName !== SUPPORT_NAME) {
+    admin.displayName = SUPPORT_NAME;
     changed = true;
   }
   if (process.env.ADMIN_PASSWORD && admin.passwordHash) {
@@ -195,6 +196,12 @@ function serializeWriting(writing, store = readStore()) {
   safeWriting.likesCount = Array.isArray(writing.likes) ? writing.likes.length : 0;
   safeWriting.commentsCount = Array.isArray(writing.comments) ? writing.comments.length : 0;
   return safeWriting;
+}
+
+function isAllowedAvatar(value) {
+  return /^\.\/Img\/avatar-(sunrise|moss|cobalt|rose)\.svg$/.test(String(value))
+    || String(value) === './Img/luma.svg'
+    || /^data:image\/(jpeg|jpg|png|webp);base64,/.test(String(value));
 }
 
 function buildNotification({ userId, type, message, relatedId = null }) {
@@ -305,8 +312,10 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const store = readStore();
+    const loginValue = String(username).trim().toLowerCase();
     const user = store.users.find((item) => {
-      return item.username.toLowerCase() === String(username).trim().toLowerCase() || item.email.toLowerCase() === String(username).trim().toLowerCase();
+      const legacyAdminEmail = item.isAdmin && loginValue === 'ember@inkurgic.com';
+      return item.username.toLowerCase() === loginValue || item.email.toLowerCase() === loginValue || legacyAdminEmail;
     });
 
     if (!user) {
@@ -398,7 +407,11 @@ app.put('/api/users/me', requireAuth, (req, res) => {
     return res.status(404).json({ message: 'User not found.' });
   }
 
-  if (avatar !== undefined && avatar !== '' && (!/^data:image\/(jpeg|jpg|png|webp);base64,/.test(avatar) || avatar.length > 1500000)) {
+  if (avatar === './Img/luma.svg' && !store.users[index].isPaid && !store.users[index].isAdmin) {
+    return res.status(402).json({ message: 'The premium Luma avatar is available after upgrading.' });
+  }
+
+  if (avatar !== undefined && avatar !== '' && (!isAllowedAvatar(avatar) || (String(avatar).startsWith('data:') && avatar.length > 1500000))) {
     return res.status(400).json({ message: 'Profile images must be JPEG, PNG, or WebP files smaller than 1 MB.' });
   }
 
@@ -449,10 +462,6 @@ app.post('/api/users/:id/follow', requireAuth, (req, res) => {
     return res.status(404).json({ message: 'User not found.' });
   }
 
-  if (currentUser.id === id) {
-    return res.status(400).json({ message: 'You cannot follow yourself.' });
-  }
-
   const isFollowing = currentUser.following.includes(id);
 
   if (isFollowing) {
@@ -460,7 +469,7 @@ app.post('/api/users/:id/follow', requireAuth, (req, res) => {
     targetUser.followers = targetUser.followers.filter((userId) => userId !== currentUser.id);
   } else {
     currentUser.following.push(id);
-    targetUser.followers.push(currentUser.id);
+    if (!targetUser.followers.includes(currentUser.id)) targetUser.followers.push(currentUser.id);
 
     const notification = buildNotification({
       userId: targetUser.id,
@@ -491,7 +500,12 @@ app.get('/api/writings', (req, res) => {
       return haystack.includes(String(q).toLowerCase());
     })
     .filter((post) => (!authorId ? true : post.authorId === authorId))
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .sort((a, b) => {
+      const following = req.user?.following || [];
+      const aPriority = following.includes(a.authorId) ? 1 : 0;
+      const bPriority = following.includes(b.authorId) ? 1 : 0;
+      return bPriority - aPriority || new Date(b.createdAt) - new Date(a.createdAt);
+    })
     .map((post) => serializeWriting(post, store));
 
   return res.json({ writings });
@@ -530,6 +544,11 @@ app.post('/api/writings', requireAuth, (req, res) => {
     }
 
     const store = readStore();
+    const author = store.users.find((user) => user.id === req.user.id);
+    const imageCount = store.writings.filter((writing) => writing.authorId === req.user.id && writing.image).length;
+    if (image && author && !author.isPaid && !author.isAdmin && imageCount >= 3) {
+      return res.status(402).json({ message: 'Free writers can attach images to 3 writings. Unlock premium for unlimited image uploads.' });
+    }
     const writing = {
       id: `writing-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
       authorId: req.user.id,
@@ -727,12 +746,23 @@ app.post('/api/support/messages', requireAuth, (req, res) => {
     id: `support-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     userId: req.user.id,
     from: 'You',
+    priority: Boolean(store.users.find((user) => user.id === req.user.id)?.isPaid),
     text: text.slice(0, 240),
     createdAt: new Date().toISOString(),
   };
   store.supportMessages.push(message);
   writeStore(store);
   return res.status(201).json({ message });
+});
+
+app.post('/api/support/survey', requireAuth, (req, res) => {
+  const answer = typeof req.body?.answer === 'string' ? req.body.answer.trim().slice(0, 80) : '';
+  if (!answer) return res.status(400).json({ message: 'Survey response is required.' });
+  const store = readStore();
+  store.supportSurveys = Array.isArray(store.supportSurveys) ? store.supportSurveys : [];
+  store.supportSurveys.push({ id: `survey-${Date.now()}`, userId: req.user.id, answer, createdAt: new Date().toISOString() });
+  writeStore(store);
+  return res.status(201).json({ message: 'Thanks. Luma will use that to route your support.' });
 });
 
 app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
@@ -777,7 +807,8 @@ app.post('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) =>
   const message = {
     id: `support-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     userId,
-    from: 'Ember',
+    from: SUPPORT_NAME,
+    priority: true,
     text: messageText.slice(0, 240),
     createdAt: new Date().toISOString(),
   };
@@ -787,14 +818,14 @@ app.post('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) =>
   store.notifications.unshift(buildNotification({
     userId,
     type: 'support',
-    message: 'Ember replied to your support conversation.',
+    message: `${SUPPORT_NAME} replied to your support conversation.`,
     relatedId: message.id,
   }));
   writeStore(store);
   sendEmail({
     to: user.email,
-    subject: 'A new message from Ember at INKurgic',
-    text: `Ember replied to your support conversation:\n\n${message.text}`,
+    subject: `A new message from ${SUPPORT_NAME} at INKurgic`,
+    text: `${SUPPORT_NAME} replied to your support conversation:\n\n${message.text}`,
   }).catch((error) => console.error('Support reply email error:', error.message));
   return res.status(201).json({ message });
 });
@@ -917,6 +948,12 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
 
   if (!user) {
     return res.status(404).json({ message: 'User not found.' });
+  }
+
+  if (user.isAdmin) {
+    user.isPaid = true;
+    writeStore(store);
+    return res.json({ message: 'Administrator premium access is already active.', user: sanitizeUser(user) });
   }
 
   if (!reference || !process.env.PAYSTACK_SECRET_KEY) {

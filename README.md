@@ -30,14 +30,12 @@ Set these environment variables in Render:
 - `JWT_SECRET` as a unique random value of at least 32 characters.
 - `CLIENT_URL` to the exact public URL serving this app.
 - `ADMIN_EMAIL=inkurgic@gmail.com`.
-- `ADMIN_PASSWORD` as a strong password you choose. This updates the seeded Ember administrator on startup. Never commit it.
+- `ADMIN_PASSWORD` as a strong password you choose. This updates the seeded administrator on startup. Never commit it.
 - `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=false`.
 - `SMTP_USER=inkurgic@gmail.com` and `MAIL_FROM=INKurgic <inkurgic@gmail.com>`.
 - `SMTP_PASS` as a Google app password, not the Gmail account password. Enable 2-Step Verification on the Google account, then create an app password under Google Account > Security.
 - `DATA_DIR=/var/data` when using the included file-backed store.
-- `PAYSTACK_PUBLIC_KEY` and `PAYSTACK_SECRET_KEY` for the matching Paystack mode.
-- `PAYSTACK_TEST_MODE=true` while testing payments.
-- `PAYSTACK_CURRENCY=USD` and `PAYSTACK_AMOUNT=299` for the default $2.99 plan. Use a currency enabled for your Paystack merchant and amount in the smallest currency unit.
+- Paystack variables are no longer required. INKurgic is currently free for writers and the Paystack checkout has been removed from the user interface.
 
 Important: the included store is file-backed. Render services have ephemeral filesystems, so production user, writing, streak, reset-token, and chat data requires a paid Render persistent disk mounted at `/var/data` and `DATA_DIR=/var/data`. A MongoDB URI may be configured for future migration, but the current routes use the file store.
 
@@ -46,9 +44,9 @@ Important: the included store is file-backed. Render services have ephemeral fil
 1. Create a Render Web Service from the repository and set the build, start, and health-check values above.
 2. Add a paid Render persistent disk mounted at `/var/data`; without it, production data will be lost on restart or deploy.
 3. Add every environment variable in the Render Environment tab. Generate `JWT_SECRET` with a password manager or a cryptographically secure generator and use 32 or more characters.
-4. Set `ADMIN_PASSWORD` before the first deploy. Log in using `inkurgic@gmail.com`; do not use the old `ember@inkurgic.com` address.
+4. Set `ADMIN_PASSWORD` before the first deploy. Log in using `inkurgic@gmail.com`; the old `ember@inkurgic.com` alias remains supported for existing accounts.
 5. Deploy and open `/api/health`. Confirm it returns `ok: true`.
-6. Test registration, login email, password reset email, writing creation, private drafts, Streak Forge check-in, and Ember support replies.
+6. Test registration, legacy login, password reset email, writing creation, private drafts, Streak Forge check-in, image uploads, and Ember support replies.
 7. Set `CLIENT_URL` to the final Render URL, redeploy, and repeat the reset flow. Reset links are generated from this value.
 8. Configure a custom domain only after the service URL works, then update `CLIENT_URL` again.
 

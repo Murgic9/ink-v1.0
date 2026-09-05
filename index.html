@@ -51,8 +51,7 @@
       </div>
 
       <div class="ad-banner" id="adBanner">
-        <strong>Sponsored</strong> • Upgrade to Go Pro for an ad-free experience and premium writing
-        perks.
+        <strong>Made for writers</strong> • A focused home for your words, your rhythm, and your readers.
       </div>
 
       <div class="prompt-panel">
@@ -83,25 +82,20 @@
 
       <div class="container">
         <section class="pricing-card" id="planCard" data-plan-id="go-pro">
-          <div class="price-header">
-            <div>
-              <div class="plan-badge">Premium plan</div>
-              <h3 class="plan-title">🚀 Go Pro</h3>
-            </div>
-            <p class="price" id="planPrice">$2.99<span>/month</span></p>
+          <div>
+            <div class="plan-badge">Writer premium</div>
+            <h3 class="plan-title">Go deeper with your craft</h3>
           </div>
-          <div class="plan-status test" id="paystackModeLabel">Paystack test mode ready</div>
-          <p class="plan-description" id="planDescription">
-            Unlock analytics, priority tools, unlimited uploads, and the support writers need to
-            publish faster.
-          </p>
+          <p class="plan-status test" id="paystackModeLabel">Secure checkout</p>
+          <p class="plan-description" id="planDescription">Unlock the tools that help a serious writing practice keep its momentum.</p>
           <ul class="features" id="planFeatures">
-            <li>✓ Unlimited uploads</li>
-            <li>✓ Growth analytics</li>
-            <li>✓ Priority features</li>
-            <li>✓ Ad-free experience</li>
+            <li>✓ Unlimited image uploads</li>
+            <li>✓ Premium Luma avatar</li>
+            <li>✓ Deep focus analytics</li>
+            <li>✓ Priority support queue</li>
           </ul>
-          <button class="btn primary full-width" type="button" id="subscribeBtn">Subscribe with Paystack</button>
+          <p class="price" id="planPrice">$2.99<span>/month</span></p>
+          <button class="btn primary full-width" type="button" id="subscribeBtn">Unlock with Paystack</button>
         </section>
 
         <section class="feed" id="poems">
@@ -225,8 +219,18 @@
               <input id="profileAvatarInput" type="file" accept="image/*" />
               <label for="profileAvatarInput" class="file-label">
                 <span class="icon">📷</span>
-                <span class="text">Update avatar</span>
+                <span class="text">Choose from your device</span>
               </label>
+            </div>
+            <div class="avatar-picker">
+              <p class="avatar-picker-label">Or choose a free avatar</p>
+              <div class="avatar-options" role="group" aria-label="Free avatar choices">
+                <button class="avatar-option" type="button" data-avatar="./Img/avatar-sunrise.svg" aria-label="Choose sunrise avatar"><img src="./Img/avatar-sunrise.svg" alt="Sunrise avatar" /></button>
+                <button class="avatar-option" type="button" data-avatar="./Img/avatar-moss.svg" aria-label="Choose moss avatar"><img src="./Img/avatar-moss.svg" alt="Moss avatar" /></button>
+                <button class="avatar-option" type="button" data-avatar="./Img/avatar-cobalt.svg" aria-label="Choose cobalt avatar"><img src="./Img/avatar-cobalt.svg" alt="Cobalt avatar" /></button>
+                <button class="avatar-option" type="button" data-avatar="./Img/avatar-rose.svg" aria-label="Choose rose avatar"><img src="./Img/avatar-rose.svg" alt="Rose avatar" /></button>
+                <button class="avatar-option premium-avatar-option" type="button" data-avatar="./Img/luma.svg" aria-label="Choose premium Luma avatar"><img src="./Img/luma.svg" alt="Premium Luma avatar" /><span>Premium</span></button>
+              </div>
             </div>
             <div class="form-actions">
               <button type="submit" class="btn primary">Save Profile</button>
@@ -297,16 +301,16 @@
               <div class="progress-block">
                 <div class="progress-meta">
                   <span>Weekly writing pace</span>
-                  <strong>68%</strong>
+                  <strong id="writingPaceValue">0%</strong>
                 </div>
-                <div class="progress-track"><span style="width: 68%"></span></div>
+                <div class="progress-track"><span id="writingPaceBar" style="width: 0%"></span></div>
               </div>
               <div class="progress-block">
                 <div class="progress-meta">
                   <span>Audience growth</span>
-                  <strong>82%</strong>
+                  <strong id="audienceGrowthValue">0%</strong>
                 </div>
-                <div class="progress-track"><span style="width: 82%"></span></div>
+                <div class="progress-track"><span id="audienceGrowthBar" style="width: 0%"></span></div>
               </div>
             </div>
             <div class="story-panel">
@@ -319,7 +323,7 @@
           <div class="support-chat-panel">
             <div class="section-header small-header">
               <h2>Writer Support</h2>
-              <p>Talk to the INKurgic team about publishing, billing, or account help.</p>
+              <p>Talk to Luma about publishing, billing, or account help.</p>
             </div>
             <div class="support-chat-shell">
               <div class="support-chat-messages" id="supportChatMessages"></div>
@@ -355,11 +359,20 @@
     </footer>
 
     <button id="supportChatFab" class="chat-fab" type="button" aria-label="Open support chat">💬</button>
+    <button id="guideFab" class="guide-fab" type="button" aria-label="Open INKurgic guide"><img src="./Img/luma.svg" alt="Luma guide" /></button>
+
+    <div class="modal hidden" id="guideModal">
+      <div class="sheet guide-sheet">
+        <div class="guide-hero"><img id="guideAvatar" src="./Img/luma.svg" alt="Luma" /><div><p class="eyebrow">Luma's field notes</p><h4 id="guideTitle">Welcome to INKurgic</h4></div></div>
+        <p id="guideText">Write, share, and find a rhythm that belongs to you.</p>
+        <div class="guide-actions"><button class="btn" id="guideBackBtn" type="button">Back</button><span id="guideStepLabel">1 / 5</span><button class="btn primary" id="guideNextBtn" type="button">Next</button></div>
+      </div>
+    </div>
 
     <div class="modal hidden" id="supportChatModal">
       <div class="sheet ember-chat-modal">
         <div class="modal-header compact-header">
-          <h4>Writer Support</h4>
+          <h4>Luma Support</h4>
           <button type="button" class="close-modal chat-close" data-close-modal="supportChatModal">✕</button>
         </div>
         <div class="support-chat-shell">

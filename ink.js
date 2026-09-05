@@ -11,6 +11,8 @@ const state = {
   users: [],
   notifications: [],
   streak: null,
+  selectedAvatar: '',
+  guideStep: 0,
   activeSection: 'home',
 };
 
@@ -216,7 +218,7 @@ function escapeHtml(value = '') {
 async function loadPaystackConfig() {
   try {
     const data = await requestJson(`${API_BASE}/config`);
-    window.PAYSTACK_PUBLIC_KEY = data.paystackPublicKey || 'pk_test_your_public_key_here';
+    window.PAYSTACK_PUBLIC_KEY = data.paystackPublicKey || '';
     window.PAYSTACK_CURRENCY = data.paystackCurrency || 'USD';
     window.PAYSTACK_AMOUNT = Number(data.paystackAmount || 299);
     const amountLabel = document.getElementById('planPrice');
@@ -226,13 +228,9 @@ async function loadPaystackConfig() {
       amountLabel.innerHTML = `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}<span>/month</span>`;
     }
     const label = document.getElementById('paystackModeLabel');
-    if (label) {
-      label.textContent = data.paystackTestMode ? 'Paystack test mode ready' : 'Paystack live mode ready';
-      label.classList.toggle('test', Boolean(data.paystackTestMode));
-      label.classList.toggle('live', !data.paystackTestMode);
-    }
+    if (label) label.textContent = data.paystackTestMode ? 'Paystack test mode ready' : 'Secure Paystack checkout';
   } catch (error) {
-    window.PAYSTACK_PUBLIC_KEY = 'pk_test_your_public_key_here';
+    showToast('Premium checkout is temporarily unavailable.', 'error');
   }
 }
 
@@ -240,7 +238,12 @@ async function loadPosts(searchTerm = '') {
   try {
     const url = searchTerm ? `${API_BASE}/writings?q=${encodeURIComponent(searchTerm)}` : `${API_BASE}/writings`;
     const data = await requestJson(url);
-    state.posts = data.writings || [];
+    const following = getCurrentUser()?.following || [];
+    state.posts = (data.writings || []).sort((a, b) => {
+      const aPriority = following.includes(a.authorId) ? 1 : 0;
+      const bPriority = following.includes(b.authorId) ? 1 : 0;
+      return bPriority - aPriority || new Date(b.createdAt) - new Date(a.createdAt);
+    });
     await loadMyPosts();
     renderPosts();
   } catch (error) {
@@ -330,6 +333,8 @@ function renderProfileSummary() {
     if (writerStatusNote) writerStatusNote.textContent = 'Sign in to start writing';
     if (writerMomentumValue) writerMomentumValue.textContent = '0';
     if (writerSavedValue) writerSavedValue.textContent = '0';
+    const planCard = document.getElementById('planCard');
+    if (planCard) planCard.hidden = false;
     return;
   }
 
@@ -356,7 +361,30 @@ function renderProfileSummary() {
   if (writerMomentumValue) writerMomentumValue.textContent = String(momentumCount);
   if (writerSavedValue) writerSavedValue.textContent = String(savedTotal);
   if (writerStatusValue) writerStatusValue.textContent = user.isPaid ? 'Pro' : 'Free';
-  if (writerStatusNote) writerStatusNote.textContent = user.isPaid ? 'Premium tools unlocked' : 'Upgrade for premium tools';
+  if (writerStatusNote) writerStatusNote.textContent = user.isPaid ? 'Premium tools unlocked' : 'Unlock premium tools';
+  const planCard = document.getElementById('planCard');
+  if (planCard) planCard.hidden = Boolean(user.isAdmin);
+  const writingPace = Math.min(100, myPosts.filter((item) => item.status !== 'draft').length * 20 + (state.streak?.current || 0) * 5);
+  const audienceGrowth = Math.min(100, (user.followers?.length || 0) * 12 + (user.following?.length || 0) * 6);
+  const writingPaceValue = document.getElementById('writingPaceValue');
+  const writingPaceBar = document.getElementById('writingPaceBar');
+  const audienceGrowthValue = document.getElementById('audienceGrowthValue');
+  const audienceGrowthBar = document.getElementById('audienceGrowthBar');
+  if (writingPaceValue) writingPaceValue.textContent = `${writingPace}%`;
+  if (writingPaceBar) writingPaceBar.style.width = `${writingPace}%`;
+  if (audienceGrowthValue) audienceGrowthValue.textContent = `${audienceGrowth}%`;
+  if (audienceGrowthBar) audienceGrowthBar.style.width = `${audienceGrowth}%`;
+}
+
+function selectAvatar(avatar) {
+  state.selectedAvatar = avatar;
+  const preview = document.getElementById('profileSummaryAvatar');
+  if (preview) preview.src = avatar;
+  document.querySelectorAll('.avatar-option').forEach((option) => {
+    option.classList.toggle('selected', option.dataset.avatar === avatar);
+  });
+  const fileInput = document.getElementById('profileAvatarInput');
+  if (fileInput) fileInput.value = '';
 }
 
 function renderSupportMessages(container, messages) {
@@ -366,8 +394,8 @@ function renderSupportMessages(container, messages) {
   }
 
   container.innerHTML = messages.map((message) => `
-    <div class="support-message ${message.from === 'Ember' ? 'admin' : 'user'}">
-      <strong>${escapeHtml(message.from === 'Ember' ? 'Ember' : 'You')}</strong>
+    <div class="support-message ${message.from !== 'You' ? 'admin' : 'user'}">
+      <strong>${escapeHtml(message.from !== 'You' ? message.from : 'You')}</strong>
       <span>${escapeHtml(message.text)}</span>
     </div>
   `).join('');
@@ -422,11 +450,29 @@ async function submitSupportChat(event) {
     input.value = '';
     const containerId = form.id === 'supportChatModalForm' ? 'supportChatModalMessages' : 'supportChatMessages';
     await loadSupportMessages(document.getElementById(containerId));
+    showSupportSurvey(containerId);
   } catch (error) {
     showToast(error.message || 'Unable to send your support message.', 'error');
   } finally {
     if (button) button.disabled = false;
   }
+}
+
+function showSupportSurvey(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container || container.querySelector('.support-survey')) return;
+  const survey = document.createElement('div');
+  survey.className = 'support-survey';
+  survey.innerHTML = '<strong>What would help most?</strong><div><button type="button" data-survey="Publishing">Publishing</button><button type="button" data-survey="Account">Account</button><button type="button" data-survey="Feedback">Feedback</button></div>';
+  container.appendChild(survey);
+  survey.querySelectorAll('[data-survey]').forEach((button) => button.addEventListener('click', async () => {
+    try {
+      const data = await requestJson(`${API_BASE}/support/survey`, { method: 'POST', headers: attachAuthHeaders(), body: JSON.stringify({ answer: button.dataset.survey }) });
+      survey.innerHTML = `<strong>${escapeHtml(data.message)}</strong>`;
+    } catch (error) {
+      showToast(error.message || 'Unable to save survey response.', 'error');
+    }
+  }));
 }
 
 function renderWriterDashboard() {
@@ -479,7 +525,13 @@ function renderWriterList() {
   if (!writersList) return;
 
   const me = getCurrentUser();
-  const writers = state.users.filter((user) => !me || user.id !== me.id).slice(0, 8);
+  const writers = state.users
+    .slice()
+    .sort((a, b) => {
+      const followed = (user) => me && Array.isArray(me.following) && me.following.includes(user.id) ? 1 : 0;
+      return followed(b) - followed(a);
+    })
+    .slice(0, 8);
 
   if (!writers.length) {
     writersList.innerHTML = '<div class="post-card"><p>New voices will appear here as soon as the community grows.</p></div>';
@@ -817,7 +869,9 @@ async function handleProfileSave(event) {
 
   try {
     const avatarInput = document.getElementById('profileAvatarInput');
-    const avatar = avatarInput && avatarInput.files && avatarInput.files[0] ? await readFileAsDataUrl(avatarInput.files[0]) : undefined;
+    const avatar = avatarInput && avatarInput.files && avatarInput.files[0]
+      ? await readFileAsDataUrl(avatarInput.files[0])
+      : state.selectedAvatar || user.avatar;
     const payload = {
       displayName: document.getElementById('profileDisplayName').value.trim() || user.displayName,
       bio: document.getElementById('profileBio').value.trim() || user.bio,
@@ -831,6 +885,7 @@ async function handleProfileSave(event) {
     });
 
     setCurrentUser(data.user);
+    state.selectedAvatar = data.user.avatar || '';
     renderProfileSummary();
     renderWriterList();
     if (avatar !== undefined) {
@@ -961,67 +1016,52 @@ async function logout() {
 
 async function subscribeToPlan() {
   const user = getCurrentUser();
-  if (!user) {
-    openModal('logModal');
-    return;
-  }
-
-  const planAmount = Number(window.PAYSTACK_AMOUNT || 299);
-  const callback = async (transaction) => {
-    try {
-      const data = await requestJson(`${API_BASE}/subscribe`, {
-        method: 'POST',
-        headers: attachAuthHeaders(),
-        body: JSON.stringify({ planId: 'go-pro', reference: transaction.reference }),
-      });
-      const refreshed = await requestJson(`${API_BASE}/auth/me`, {
-        headers: attachAuthHeaders(),
-      });
-      setCurrentUser(refreshed.user);
-      renderProfileSummary();
-      showToast(data.message || 'Go Pro is active for your account.', 'success');
-    } catch (error) {
-      showToast(error.message || 'Subscription failed.', 'error');
-    } finally {
-      const button = document.getElementById('subscribeBtn');
-      if (button) button.disabled = false;
-    }
-  };
-
-  const key = window.PAYSTACK_PUBLIC_KEY || 'pk_test_your_public_key_here';
-  if (!window.PaystackPop) {
-    showToast('Paystack script is not available yet. Please refresh and try again.', 'error');
-    return;
-  }
-
-  if (key.includes('your_public_key')) {
-    showToast('Add your real Paystack public key to the .env file and refresh the app to activate checkout.', 'error');
-    return;
-  }
-
-  if (!Number.isInteger(planAmount) || planAmount <= 0 || !window.PAYSTACK_CURRENCY) {
-    showToast('Payment settings are incomplete. Please contact the administrator.', 'error');
-    return;
-  }
+  if (!user) return openModal('logModal');
+  if (user.isAdmin) return showToast('Admin premium access is already active.', 'info');
+  if (!window.PaystackPop || !window.PAYSTACK_PUBLIC_KEY) return showToast('Premium checkout is not configured yet.', 'error');
 
   const button = document.getElementById('subscribeBtn');
   if (button) button.disabled = true;
   const handler = window.PaystackPop.setup({
-    key,
-    email: user.email || 'writer@inkurgic.com',
-    amount: planAmount,
-    currency: window.PAYSTACK_CURRENCY || 'NGN',
+    key: window.PAYSTACK_PUBLIC_KEY,
+    email: user.email,
+    amount: Number(window.PAYSTACK_AMOUNT || 299),
+    currency: window.PAYSTACK_CURRENCY || 'USD',
     ref: `ink-${Date.now()}`,
-    callback: function (transaction) {
-      callback(transaction);
+    callback: async (transaction) => {
+      try {
+        const data = await requestJson(`${API_BASE}/subscribe`, { method: 'POST', headers: attachAuthHeaders(), body: JSON.stringify({ planId: 'go-pro', reference: transaction.reference }) });
+        setCurrentUser(data.user);
+        renderProfileSummary();
+        showToast('Premium unlocked. Welcome to the deeper studio.', 'success');
+      } catch (error) {
+        showToast(error.message || 'Payment verification failed.', 'error');
+      } finally {
+        if (button) button.disabled = false;
+      }
     },
-    onClose: function () {
-      if (button) button.disabled = false;
-      showToast('Payment window closed. Your account was not charged.', 'info');
-    },
+    onClose: () => { if (button) button.disabled = false; },
   });
-
   handler.openIframe();
+}
+
+const guideSteps = [
+  ['Welcome to INKurgic', 'Luma waves hello. Explore Home for fresh work, then open Poems when a line starts asking to be written.', 'wave'],
+  ['Make something yours', 'Choose a free avatar or upload one from your device. Attach an image to a poem, save a draft, and publish when it feels ready.', 'point'],
+  ['Find your people', 'Read, react, comment, and follow writers. The writers you follow rise to the top of your feed.', 'look'],
+  ['Build a rhythm', 'Streak Forge tracks real check-ins. Your Creative Focus numbers come from your writing, streak, followers, and practice.', 'celebrate'],
+  ['Unlock your edge', 'Premium adds unlimited image uploads, a Luma avatar, deeper focus analytics, and priority support. Admins receive it free.', 'spark'],
+];
+
+function renderGuide() {
+  const [title, text, gesture] = guideSteps[state.guideStep];
+  document.getElementById('guideTitle').textContent = title;
+  document.getElementById('guideText').textContent = text;
+  document.getElementById('guideStepLabel').textContent = `${state.guideStep + 1} / ${guideSteps.length}`;
+  const avatar = document.getElementById('guideAvatar');
+  if (avatar) avatar.className = `guide-avatar gesture-${gesture}`;
+  document.getElementById('guideBackBtn').disabled = state.guideStep === 0;
+  document.getElementById('guideNextBtn').textContent = state.guideStep === guideSteps.length - 1 ? 'Done' : 'Next';
 }
 
 async function loadNotifications() {
@@ -1085,7 +1125,18 @@ function bindEvents() {
   document.getElementById('loginBtn')?.addEventListener('click', () => openModal('logModal'));
   document.getElementById('logoutBtn')?.addEventListener('click', logout);
   document.getElementById('adminBtn')?.addEventListener('click', () => window.open('./admin/index.html', '_self'));
+  document.getElementById('startWritingBtn')?.addEventListener('click', () => navigate('poems'));
   document.getElementById('subscribeBtn')?.addEventListener('click', subscribeToPlan);
+  document.getElementById('guideFab')?.addEventListener('click', () => { state.guideStep = 0; renderGuide(); openModal('guideModal'); });
+  document.getElementById('guideNextBtn')?.addEventListener('click', () => {
+    if (state.guideStep === guideSteps.length - 1) return closeModal('guideModal');
+    state.guideStep += 1;
+    renderGuide();
+  });
+  document.getElementById('guideBackBtn')?.addEventListener('click', () => {
+    state.guideStep = Math.max(0, state.guideStep - 1);
+    renderGuide();
+  });
   document.getElementById('writerBoostBtn')?.addEventListener('click', () => {
     navigate('poems');
     showToast('Your next draft can start from the Poem Studio.', 'info');
@@ -1121,6 +1172,12 @@ function bindEvents() {
     }
   });
   document.getElementById('profileForm')?.addEventListener('submit', handleProfileSave);
+  document.querySelectorAll('.avatar-option').forEach((option) => {
+    option.addEventListener('click', () => selectAvatar(option.dataset.avatar));
+  });
+  document.getElementById('profileAvatarInput')?.addEventListener('change', () => {
+    state.selectedAvatar = '';
+  });
   document.getElementById('supportChatForm')?.addEventListener('submit', submitSupportChat);
   document.getElementById('supportChatModalForm')?.addEventListener('submit', submitSupportChat);
   document.getElementById('supportChatFab')?.addEventListener('click', openSupportChatModal);
@@ -1135,6 +1192,7 @@ function bindEvents() {
       closeModal('regModal');
       closeModal('logModal');
       closeModal('emailModal');
+      closeModal('guideModal');
     });
   });
 

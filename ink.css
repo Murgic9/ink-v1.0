@@ -1073,6 +1073,44 @@ body {
   color: var(--primary);
 }
 
+.avatar-picker {
+  margin-top: 18px;
+}
+
+.avatar-picker-label {
+  margin: 0 0 10px;
+  color: var(--dark);
+  font-weight: 700;
+}
+
+.avatar-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.avatar-option {
+  width: 58px;
+  height: 58px;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.avatar-option:hover,
+.avatar-option.selected {
+  border-color: var(--primary);
+}
+
+.avatar-option img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
 .form-actions {
   display: flex;
   gap: 8px;
@@ -1743,3 +1781,106 @@ h1, h2, h3, h4, .logo {
   .ember-chat-modal { width: min(92vw, 400px); }
   .reactions { flex-wrap: wrap; }
 }
+
+.creator-welcome-card {
+  display: grid;
+  gap: 14px;
+  margin: 0 auto 28px;
+  padding: clamp(22px, 4vw, 34px);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(120deg, #172b29, #27665a);
+  color: white;
+  box-shadow: var(--shadow);
+}
+
+.creator-welcome-card .plan-badge,
+.creator-welcome-card .plan-title,
+.creator-welcome-card .plan-description {
+  color: white;
+}
+
+.creator-welcome-card .plan-title {
+  margin: 6px 0 0;
+}
+
+.creator-welcome-card .plan-description {
+  max-width: 720px;
+  opacity: 0.88;
+}
+
+.creator-welcome-card .features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin: 0;
+}
+
+.creator-welcome-card .btn {
+  justify-self: start;
+  background: white;
+  color: #1b4e45;
+}
+
+.premium-avatar-option {
+  position: relative;
+}
+
+.premium-avatar-option span {
+  position: absolute;
+  right: -8px;
+  bottom: -5px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.guide-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 86px;
+  z-index: 20;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: #173c38;
+  box-shadow: 0 10px 24px rgba(23, 60, 56, 0.25);
+  cursor: pointer;
+}
+
+.guide-fab img,
+.guide-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.guide-sheet { max-width: 520px; }
+.guide-hero { display: flex; align-items: center; gap: 16px; }
+.guide-hero h4 { margin: 0; }
+.guide-hero .eyebrow { margin-bottom: 4px; }
+.guide-avatar { width: 76px; height: 76px; transition: transform 0.35s ease; }
+.gesture-wave { transform: rotate(8deg) translateY(-3px); }
+.gesture-point { transform: translateX(4px) rotate(-6deg); }
+.gesture-look { transform: rotate(-8deg); }
+.gesture-celebrate { transform: translateY(-6px) scale(1.04); }
+.gesture-spark { transform: rotate(12deg) scale(1.05); }
+.guide-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }
+
+.support-survey {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f5faf8;
+}
+
+.support-survey div { display: flex; flex-wrap: wrap; gap: 8px; }
+.support-survey button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: white; cursor: pointer; }

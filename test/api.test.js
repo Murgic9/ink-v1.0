@@ -45,6 +45,12 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   assert.equal(admin.user.email, 'inkurgic@gmail.com');
   assert.equal(admin.user.isAdmin, true);
 
+  const legacyAdminLogin = await request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username: 'ember@inkurgic.com', password: 'inkurgic' }),
+  });
+  assert.equal(legacyAdminLogin.user.isAdmin, true);
+
   const username = `writer${Date.now()}`;
   const email = `${username}@example.com`;
   const registered = await request('/auth/register', {
@@ -52,6 +58,20 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
     body: JSON.stringify({ username, displayName: 'Test Writer', email, password: 'password123' }),
   });
   const auth = { Authorization: `Bearer ${registered.token}` };
+
+  const avatarUpdate = await request('/users/me', {
+    method: 'PUT',
+    headers: auth,
+    body: JSON.stringify({ avatar: './Img/avatar-sunrise.svg' }),
+  });
+  assert.equal(avatarUpdate.user.avatar, './Img/avatar-sunrise.svg');
+
+  const premiumAvatarResponse = await fetch(`${baseUrl}/users/me`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify({ avatar: './Img/luma.svg' }),
+  });
+  assert.equal(premiumAvatarResponse.status, 402);
 
   const draft = await request('/writings', {
     method: 'POST',
