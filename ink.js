@@ -1,6 +1,24 @@
 const API_BASE = '/api';
 const tokenKey = 'ink_token';
 const userKey = 'ink_user';
+const paystackReady = new Promise((resolve, reject) => {
+  if (window.PaystackPop) {
+    resolve(window.PaystackPop);
+    return;
+  }
+
+  const script = document.getElementById('paystackScript');
+  if (!script) {
+    reject(new Error('Paystack checkout script is missing.'));
+    return;
+  }
+
+  script.addEventListener('load', () => {
+    if (window.PaystackPop) resolve(window.PaystackPop);
+    else reject(new Error('Paystack checkout loaded without its SDK.'));
+  }, { once: true });
+  script.addEventListener('error', () => reject(new Error('Paystack checkout could not be loaded.')), { once: true });
+});
 
 const state = {
   currentUser: null,
@@ -1023,27 +1041,37 @@ async function subscribeToPlan() {
   const user = getCurrentUser();
   if (!user) return openModal('logModal');
   if (user.isAdmin) return showToast('Admin premium access is already active.', 'info');
-  if (!window.PaystackPop || !window.PAYSTACK_PUBLIC_KEY) return showToast('Premium checkout is not configured yet.', 'error');
+  if (!window.PAYSTACK_PUBLIC_KEY) return showToast('Premium checkout is not configured yet.', 'error');
 
   const button = document.getElementById('subscribeBtn');
   if (button) button.disabled = true;
-  const handler = window.PaystackPop.setup({
+  let paystack;
+  try {
+    paystack = await paystackReady;
+  } catch (error) {
+    if (button) button.disabled = false;
+    return showToast(error.message || 'Paystack checkout could not be loaded.', 'error');
+  }
+
+  const handler = paystack.setup({
     key: window.PAYSTACK_PUBLIC_KEY,
     email: user.email,
     amount: Number(window.PAYSTACK_AMOUNT || 299),
     currency: window.PAYSTACK_CURRENCY || 'USD',
     ref: `ink-${Date.now()}`,
-    callback: async (transaction) => {
-      try {
-        const data = await requestJson(`${API_BASE}/subscribe`, { method: 'POST', headers: attachAuthHeaders(), body: JSON.stringify({ planId: 'go-pro', reference: transaction.reference }) });
-        setCurrentUser(data.user);
-        renderProfileSummary();
-        showToast('Premium unlocked. Welcome to the deeper studio.', 'success');
-      } catch (error) {
-        showToast(error.message || 'Payment verification failed.', 'error');
-      } finally {
-        if (button) button.disabled = false;
-      }
+    callback: function (transaction) {
+      void (async () => {
+        try {
+          const data = await requestJson(`${API_BASE}/subscribe`, { method: 'POST', headers: attachAuthHeaders(), body: JSON.stringify({ planId: 'go-pro', reference: transaction.reference }) });
+          setCurrentUser(data.user);
+          renderProfileSummary();
+          showToast('Premium unlocked. Welcome to the deeper studio.', 'success');
+        } catch (error) {
+          showToast(error.message || 'Payment verification failed.', 'error');
+        } finally {
+          if (button) button.disabled = false;
+        }
+      })();
     },
     onClose: () => { if (button) button.disabled = false; },
   });
