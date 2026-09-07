@@ -41,7 +41,7 @@ Set these environment variables in Render:
 - `PAYSTACK_CURRENCY=USD` (or the currency configured in your Paystack account).
 - `PAYSTACK_AMOUNT=299` in Paystack's smallest currency unit.
 
-Important: the included store is file-backed. Render services have ephemeral filesystems, so production user, writing, streak, reset-token, and chat data requires a paid Render persistent disk mounted at `/var/data` and `DATA_DIR=/var/data`. A MongoDB URI may be configured for future migration, but the current routes use the file store.
+Important: the included store is file-backed. Render services have ephemeral filesystems, so production user, writing, streak, reset-token, and chat data requires a paid Render persistent disk mounted at `/var/data` and `DATA_DIR=/var/data`. If that path is unavailable, the service falls back to temporary storage and logs a warning; data in that fallback can be lost on restart or deploy. A MongoDB URI may be configured for future migration, but the current routes use the file store.
 
 ### Render launch checklist
 

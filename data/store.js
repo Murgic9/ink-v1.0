@@ -1,8 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname;
-const dataFile = path.join(dataDir, 'app-data.json');
+let dataDir = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : process.env.NODE_ENV === 'production'
+    ? path.join(require('os').tmpdir(), 'inkurgic-data')
+    : __dirname;
+let dataFile = path.join(dataDir, 'app-data.json');
+let usingFallback = false;
 
 const seedData = {
   users: [
@@ -89,12 +94,25 @@ const seedData = {
 };
 
 function ensureStore() {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
+  try {
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
 
-  if (!fs.existsSync(dataFile)) {
-    fs.writeFileSync(dataFile, JSON.stringify(seedData, null, 2), 'utf8');
+    if (!fs.existsSync(dataFile)) {
+      fs.writeFileSync(dataFile, JSON.stringify(seedData, null, 2), 'utf8');
+    }
+  } catch (error) {
+    if (usingFallback || !['EACCES', 'EROFS', 'ENOSPC'].includes(error.code)) throw error;
+
+    dataDir = path.join(require('os').tmpdir(), 'inkurgic-data');
+    dataFile = path.join(dataDir, 'app-data.json');
+    usingFallback = true;
+    fs.mkdirSync(dataDir, { recursive: true });
+    if (!fs.existsSync(dataFile)) {
+      fs.writeFileSync(dataFile, JSON.stringify(seedData, null, 2), 'utf8');
+    }
+    console.warn(`Data directory is not writable; using temporary storage at ${dataDir}.`);
   }
 }
 

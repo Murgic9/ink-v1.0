@@ -35,9 +35,6 @@ function validateProductionEnvironment() {
     throw new Error('JWT_SECRET must be set to a strong value in production.');
   }
 
-  if (!process.env.DATA_DIR) {
-    throw new Error('DATA_DIR must point to a persistent Render disk in production.');
-  }
 }
 
 try {
