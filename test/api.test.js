@@ -83,6 +83,21 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   assert.equal(publicFeed.writings.some((writing) => writing.id === draft.writing.id), false);
   assert.equal(privateFeed.writings.some((writing) => writing.id === draft.writing.id), true);
 
+  const deleteResponse = await fetch(`${baseUrl}/writings/${draft.writing.id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...auth },
+  });
+  assert.equal(deleteResponse.status, 200);
+  const afterDelete = await request('/writings/mine', { headers: auth });
+  assert.equal(afterDelete.writings.some((writing) => writing.id === draft.writing.id), false);
+
+  const feedback = await request('/feedback', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ category: 'Product', message: 'The prompt library feels useful.' }),
+  });
+  assert.equal(feedback.feedback.status, 'unread');
+
   const prompts = await request('/prompts');
   assert.ok(prompts.prompts.length >= 10);
   const initialStreak = await request('/streak', { headers: auth });
@@ -98,6 +113,14 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
 
   const overview = await request('/admin/overview', { headers: { Authorization: `Bearer ${admin.token}` } });
   assert.ok(overview.stats.users >= 2);
+
+  const feedbackInbox = await request('/admin/feedback', { headers: { Authorization: `Bearer ${admin.token}` } });
+  assert.equal(feedbackInbox.feedback[0].id, feedback.feedback.id);
+  const feedbackRead = await request(`/admin/feedback/${feedback.feedback.id}/read`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${admin.token}` },
+  });
+  assert.equal(feedbackRead.feedback.status, 'read');
 
   const promoted = await request('/admin/promote', {
     method: 'POST',

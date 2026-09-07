@@ -35,7 +35,11 @@ Set these environment variables in Render:
 - `SMTP_USER=inkurgic@gmail.com` and `MAIL_FROM=INKurgic <inkurgic@gmail.com>`.
 - `SMTP_PASS` as a Google app password, not the Gmail account password. Enable 2-Step Verification on the Google account, then create an app password under Google Account > Security.
 - `DATA_DIR=/var/data` when using the included file-backed store.
-- Paystack variables are no longer required. INKurgic is currently free for writers and the Paystack checkout has been removed from the user interface.
+- `PAYSTACK_PUBLIC_KEY` with your Paystack public key.
+- `PAYSTACK_SECRET_KEY` with your Paystack secret key. Keep this server-side only.
+- `PAYSTACK_TEST_MODE=true` while testing, then set it to `false` for live payments.
+- `PAYSTACK_CURRENCY=USD` (or the currency configured in your Paystack account).
+- `PAYSTACK_AMOUNT=299` in Paystack's smallest currency unit.
 
 Important: the included store is file-backed. Render services have ephemeral filesystems, so production user, writing, streak, reset-token, and chat data requires a paid Render persistent disk mounted at `/var/data` and `DATA_DIR=/var/data`. A MongoDB URI may be configured for future migration, but the current routes use the file store.
 
@@ -47,7 +51,7 @@ Important: the included store is file-backed. Render services have ephemeral fil
 4. Set `ADMIN_PASSWORD` before the first deploy. Log in using `inkurgic@gmail.com`; the old `ember@inkurgic.com` alias remains supported for existing accounts.
 5. Deploy and open `/api/health`. Confirm it returns `ok: true`.
 6. Test registration, legacy login, password reset email, writing creation, private drafts, Streak Forge check-in, image uploads, and Ember support replies.
-7. Set `CLIENT_URL` to the final Render URL, redeploy, and repeat the reset flow. Reset links are generated from this value.
+7. Set `CLIENT_URL` to the final Render URL, redeploy, and repeat the reset and Paystack return flows. Both URLs are generated from this value.
 8. Configure a custom domain only after the service URL works, then update `CLIENT_URL` again.
 
 Gmail delivery will be skipped with a server warning when SMTP variables are absent. That is useful locally, but production must have SMTP configured for welcome, login, reset, and Ember-reply emails.

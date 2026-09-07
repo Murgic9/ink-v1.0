@@ -203,6 +203,22 @@ function renderWritings(writings = []) {
   });
 }
 
+function renderFeedback(items = []) {
+  const container = document.getElementById('feedbackList');
+  if (!container) return;
+  const feedback = Array.isArray(items) ? items : [];
+  container.innerHTML = feedback.length ? feedback.map((item) => `
+    <div class="compact-item">
+      <div>
+        <strong>${escapeHtml(item.displayName || item.email || 'Writer')}</strong>
+        <div class="meta">${escapeHtml(item.category || 'General')} • ${new Date(item.createdAt).toLocaleString()}</div>
+        <p>${escapeHtml(item.message)}</p>
+      </div>
+      <button class="btn ${item.status === 'read' ? '' : 'primary'}" type="button" data-feedback-read="${item.id}" ${item.status === 'read' ? 'disabled' : ''}>${item.status === 'read' ? 'Read' : 'Mark read'}</button>
+    </div>
+  `).join('') : '<p class="empty-copy">No feedback has been submitted yet.</p>';
+}
+
 async function renderChatUsers() {
   const container = document.getElementById('chatUsersList');
   if (!container) return;
@@ -294,6 +310,8 @@ async function loadAdminOverview() {
     renderUsers(data.users || []);
     renderWritings(data.writings || []);
     renderApprovals(data.subscriptions || []);
+    const feedbackData = await requestAdminJson('../api/admin/feedback', { headers: { Authorization: `Bearer ${token}` } });
+    renderFeedback(feedbackData.feedback || []);
     await renderChatUsers();
   } catch (error) {
     console.error('Admin overview error:', error);
@@ -302,6 +320,7 @@ async function loadAdminOverview() {
     renderPulse({ stats: {} });
     renderUsers([]);
     renderWritings([]);
+    renderFeedback([]);
   }
 }
 
@@ -413,6 +432,7 @@ function bindAdminEvents() {
     const target = event.target;
     const paidButton = target.closest('[data-toggle-paid]');
     const adminButton = target.closest('[data-toggle-admin]');
+    const feedbackButton = target.closest('[data-feedback-read]');
 
     if (paidButton) {
       await toggleUserPaid(paidButton.dataset.togglePaid);
@@ -420,6 +440,18 @@ function bindAdminEvents() {
 
     if (adminButton) {
       await toggleAdminUser(adminButton.dataset.toggleAdmin);
+    }
+
+    if (feedbackButton) {
+      try {
+        await requestAdminJson(`../api/admin/feedback/${feedbackButton.dataset.feedbackRead}/read`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${getAdminToken()}` },
+        });
+        await loadAdminOverview();
+      } catch (error) {
+        alert(error.message || 'Unable to update feedback status.');
+      }
     }
   });
 }

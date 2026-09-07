@@ -321,6 +321,23 @@
             </div>
           </div>
 
+          <div class="support-chat-panel feedback-panel">
+            <div class="section-header small-header">
+              <h2>Share feedback</h2>
+              <p>Help us shape a more generous writing space.</p>
+            </div>
+            <form id="feedbackForm" class="feedback-form">
+              <select id="feedbackCategory" aria-label="Feedback category">
+                <option value="General">General</option>
+                <option value="Writing experience">Writing experience</option>
+                <option value="Account">Account</option>
+                <option value="Community">Community</option>
+              </select>
+              <textarea id="feedbackMessage" rows="3" maxlength="2000" placeholder="What should we improve?" required></textarea>
+              <button class="btn primary" type="submit">Send feedback</button>
+            </form>
+          </div>
+
           <div class="section-header small-header">
             <h2>Discover Writers</h2>
             <p>Follow writers whose work speaks to your voice and rhythm.</p>
@@ -430,6 +447,29 @@
         <div class="form-actions email-actions">
           <button type="button" class="btn primary close-modal">Close</button>
         </div>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="resetModal">
+      <div class="sheet">
+        <h4 id="resetModalTitle">Reset your password</h4>
+        <form id="resetRequestForm">
+          <p class="section-note">Enter the email connected to your INKurgic account.</p>
+          <input id="resetEmail" type="email" placeholder="Email address" required />
+          <div class="form-actions">
+            <button type="button" class="btn close-modal">Cancel</button>
+            <button type="submit" class="btn primary">Send reset link</button>
+          </div>
+        </form>
+        <form id="resetPasswordForm" hidden>
+          <p class="section-note">Choose a new password with at least 8 characters.</p>
+          <input id="resetPassword" type="password" minlength="8" placeholder="New password" required />
+          <input id="resetPasswordConfirm" type="password" minlength="8" placeholder="Confirm new password" required />
+          <div class="form-actions">
+            <button type="button" class="btn close-modal">Cancel</button>
+            <button type="submit" class="btn primary">Update password</button>
+          </div>
+        </form>
       </div>
     </div>
 

@@ -7,6 +7,7 @@ const path = require('path');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 
 let nodemailer;
 try {
@@ -92,7 +93,7 @@ function sendUserEmail(user, subject, text) {
 
 function ensureAdminAccount() {
   const store = readStore();
-  const admin = store.users.find((user) => user.isAdmin) || store.users[0];
+  const admin = store.users.find((user) => user.isAdmin || user.email === ADMIN_EMAIL);
   if (!admin) return;
 
   let changed = false;
@@ -212,6 +213,15 @@ function isAllowedAvatar(value) {
     || /^data:image\/(jpeg|jpg|png|webp);base64,/.test(String(value));
 }
 
+function getPaystackAmount() {
+  const amount = Number(process.env.PAYSTACK_AMOUNT || 299);
+  return Number.isInteger(amount) && amount > 0 ? amount : 299;
+}
+
+function getPaystackCurrency() {
+  return String(process.env.PAYSTACK_CURRENCY || 'USD').trim().toUpperCase();
+}
+
 function buildNotification({ userId, type, message, relatedId = null }) {
   return {
     id: `note-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -234,10 +244,10 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/config', (req, res) => {
   res.json({
-    paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || 'pk_test_your_public_key_here',
+    paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || '',
     paystackTestMode: String(process.env.PAYSTACK_TEST_MODE || 'true').toLowerCase() === 'true',
-    paystackCurrency: String(process.env.PAYSTACK_CURRENCY || 'USD').toUpperCase(),
-    paystackAmount: Number(process.env.PAYSTACK_AMOUNT || 299),
+    paystackCurrency: getPaystackCurrency(),
+    paystackAmount: getPaystackAmount(),
     clientUrl: process.env.CLIENT_URL || 'http://localhost:5000',
   });
 });
@@ -783,6 +793,28 @@ app.post('/api/support/survey', requireAuth, (req, res) => {
   return res.status(201).json({ message: 'Thanks. Luma will use that to route your support.' });
 });
 
+app.post('/api/feedback', requireAuth, (req, res) => {
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  const category = typeof req.body?.category === 'string' ? req.body.category.trim().slice(0, 40) : 'General';
+  if (!message) return res.status(400).json({ message: 'Feedback cannot be empty.' });
+
+  const store = readStore();
+  const user = store.users.find((item) => item.id === req.user.id);
+  const feedback = {
+    id: `feedback-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    userId: req.user.id,
+    email: user?.email || '',
+    displayName: user?.displayName || user?.username || 'Writer',
+    message: message.slice(0, 2000),
+    category,
+    status: 'unread',
+    createdAt: new Date().toISOString(),
+  };
+  store.feedback.unshift(feedback);
+  writeStore(store);
+  return res.status(201).json({ feedback });
+});
+
 app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
   const store = readStore();
   const writings = store.writings || [];
@@ -797,6 +829,8 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
       followers: store.users.reduce((sum, user) => sum + (user.followers || []).length, 0),
       drafts: writings.filter((writing) => writing.status === 'draft').length,
       supportMessages: supportMessages.length,
+      feedback: store.feedback.length,
+      unreadFeedback: store.feedback.filter((item) => item.status !== 'read').length,
       activeStreaks,
       admins: store.users.filter((user) => user.isAdmin).length,
     },
@@ -810,6 +844,20 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
 app.get('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) => {
   const store = readStore();
   return res.json({ messages: (store.supportMessages || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) });
+});
+
+app.get('/api/admin/feedback', requireAuth, requireAdmin, (req, res) => {
+  const store = readStore();
+  return res.json({ feedback: store.feedback.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) });
+});
+
+app.patch('/api/admin/feedback/:id/read', requireAuth, requireAdmin, (req, res) => {
+  const store = readStore();
+  const item = store.feedback.find((feedback) => feedback.id === req.params.id);
+  if (!item) return res.status(404).json({ message: 'Feedback not found.' });
+  item.status = 'read';
+  writeStore(store);
+  return res.json({ feedback: item });
 });
 
 app.post('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) => {
@@ -902,23 +950,11 @@ app.post('/api/admin/promote', requireAuth, requireAdmin, (req, res) => {
 });
 
 app.get('/api/prompts', (req, res) => {
-  const prompts = [
-    'Write about a room that remembers your name.',
-    'Describe a city that only appears after midnight.',
-    'Write a letter to a version of yourself that has changed.',
-    'A forgotten object begins speaking in a crowded train.',
-    'Write a poem about a hope that sounds like rain.',
-    'Write about the last page of a book no one else has read.',
-    'A melody from your childhood returns with a different ending.',
-    'Write from the perspective of a key that opens no door.',
-    'Describe a goodbye that happens without anyone leaving.',
-    'Let two strangers recognize each other through one sentence.',
-    'Write about a promise made to the future at 3 a.m.',
-    'A garden grows from the place where a secret was buried.',
-  ];
-  const day = Math.floor(Date.now() / 86400000);
-  const offset = day % prompts.length;
-  return res.json({ prompts: prompts.slice(offset).concat(prompts.slice(0, offset)) });
+  const store = readStore();
+  const prompts = store.prompts.slice();
+  const offset = Math.floor(Date.now() / 86400000) % prompts.length;
+  const rotated = prompts.slice(offset).concat(prompts.slice(0, offset));
+  return res.json({ prompts: rotated.map((prompt) => prompt.text), promptData: rotated });
 });
 
 app.get('/api/streak', requireAuth, (req, res) => {
@@ -960,6 +996,40 @@ app.patch('/api/streak', requireAuth, async (req, res) => {
   return res.json({ streak: user.streak });
 });
 
+app.post('/api/payments/initialize', requireAuth, async (req, res) => {
+  const user = readStore().users.find((item) => item.id === req.user.id);
+  if (!user) return res.status(404).json({ message: 'User not found.' });
+  if (user.isPaid || user.isAdmin) return res.status(409).json({ message: 'Premium access is already active.' });
+  if (!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({ message: 'Premium checkout is not configured.' });
+
+  const reference = `ink-${user.id}-${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user.email,
+        amount: getPaystackAmount(),
+        currency: getPaystackCurrency(),
+        reference,
+        callback_url: `${CLIENT_URL}/?payment=return`,
+        metadata: { userId: user.id, planId: 'go-pro' },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const result = await response.json();
+    if (!response.ok || result.status !== true || !result.data?.authorization_url) {
+      return res.status(502).json({ message: 'Paystack could not initialize this payment.' });
+    }
+    return res.json({ authorizationUrl: result.data.authorization_url, reference: result.data.reference });
+  } catch (error) {
+    return res.status(error.name === 'AbortError' ? 504 : 502).json({ message: 'Unable to connect to Paystack right now.' });
+  }
+});
+
 app.post('/api/subscribe', requireAuth, async (req, res) => {
   const { planId = 'go-pro', reference } = req.body || {};
   const store = readStore();
@@ -993,8 +1063,8 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
     });
     clearTimeout(verificationTimeout);
     const result = await verification.json();
-    const expectedAmount = Number(process.env.PAYSTACK_AMOUNT || 299);
-    const expectedCurrency = String(process.env.PAYSTACK_CURRENCY || 'USD').toUpperCase();
+    const expectedAmount = getPaystackAmount();
+    const expectedCurrency = getPaystackCurrency();
     if (!verification.ok || result.status !== true || result.data?.status !== 'success' || result.data?.customer?.email?.toLowerCase() !== user.email.toLowerCase() || Number(result.data?.amount) !== expectedAmount || String(result.data?.currency).toUpperCase() !== expectedCurrency) {
       return res.status(402).json({ message: 'Payment could not be verified for this account.' });
     }

@@ -24,6 +24,7 @@ const state = {
   currentUser: null,
   currentPrompt: '',
   prompts: [],
+  promptData: [],
   posts: [],
   myPosts: [],
   users: [],
@@ -187,6 +188,7 @@ async function loadPrompts() {
   try {
     const data = await requestJson(`${API_BASE}/prompts`);
     state.prompts = data.prompts || [];
+    state.promptData = data.promptData || state.prompts.map((text) => ({ text, category: 'Writing' }));
     if (!state.currentPrompt && state.prompts.length) {
       state.currentPrompt = state.prompts[0];
     }
@@ -476,6 +478,34 @@ async function submitSupportChat(event) {
     showSupportSurvey(containerId);
   } catch (error) {
     showToast(error.message || 'Unable to send your support message.', 'error');
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+  if (!getCurrentUser()) {
+    openModal('logModal');
+    return;
+  }
+  const form = event.currentTarget;
+  const messageInput = form.querySelector('#feedbackMessage');
+  const button = form.querySelector('button[type="submit"]');
+  const message = messageInput?.value.trim() || '';
+  const category = form.querySelector('#feedbackCategory')?.value || 'General';
+  if (!message) return showToast('Write some feedback before sending it.', 'error');
+  if (button) button.disabled = true;
+  try {
+    await requestJson(`${API_BASE}/feedback`, {
+      method: 'POST',
+      headers: attachAuthHeaders(),
+      body: JSON.stringify({ message, category }),
+    });
+    form.reset();
+    showToast('Thanks. Your feedback reached the INKurgic team.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Unable to send feedback.', 'error');
   } finally {
     if (button) button.disabled = false;
   }
@@ -912,9 +942,8 @@ async function handleProfileSave(event) {
     renderProfileSummary();
     renderWriterList();
     if (avatar !== undefined) {
-      document.querySelectorAll('.brand-img, #currentAvatar').forEach((image) => {
-        image.src = data.user.avatar || './Img/Logo.jpg';
-      });
+      const currentAvatar = document.getElementById('currentAvatar');
+      if (currentAvatar) currentAvatar.src = data.user.avatar || './Img/Logo.jpg';
     }
     showToast('Profile updated.', 'success');
   } catch (error) {
@@ -978,15 +1007,25 @@ async function handleLogin(event) {
   }
 }
 
-async function requestPasswordReset() {
-  const email = window.prompt('Enter the email on your INKurgic account:');
-  if (!email) return;
+function showResetRequestForm() {
+  const requestForm = document.getElementById('resetRequestForm');
+  const passwordForm = document.getElementById('resetPasswordForm');
+  if (requestForm) requestForm.hidden = false;
+  if (passwordForm) passwordForm.hidden = true;
+  openModal('resetModal');
+}
+
+async function requestPasswordReset(event) {
+  event?.preventDefault();
+  const email = document.getElementById('resetEmail')?.value.trim();
+  if (!email) return showResetRequestForm();
   try {
     const data = await requestJson(`${API_BASE}/auth/forgot-password`, {
       method: 'POST',
       body: JSON.stringify({ email: email.trim() }),
     });
     showToast(data.message, 'success');
+    closeModal('resetModal');
   } catch (error) {
     showToast(error.message || 'Unable to start password reset.', 'error');
   }
@@ -995,14 +1034,24 @@ async function requestPasswordReset() {
 async function resetPasswordFromLink() {
   const token = new URLSearchParams(window.location.search).get('reset');
   if (!token) return;
-  const password = window.prompt('Choose a new password (at least 8 characters):');
-  if (!password) return;
+  state.resetToken = token;
+  document.getElementById('resetRequestForm').hidden = true;
+  document.getElementById('resetPasswordForm').hidden = false;
+  openModal('resetModal');
+}
+
+async function submitPasswordReset(event) {
+  event.preventDefault();
+  const password = document.getElementById('resetPassword')?.value || '';
+  const confirmation = document.getElementById('resetPasswordConfirm')?.value || '';
+  if (password !== confirmation) return showToast('Passwords do not match.', 'error');
   try {
     const data = await requestJson(`${API_BASE}/auth/reset-password`, {
       method: 'POST',
-      body: JSON.stringify({ token, password }),
+      body: JSON.stringify({ token: state.resetToken, password }),
     });
     window.history.replaceState({}, document.title, window.location.pathname);
+    closeModal('resetModal');
     showToast(data.message, 'success');
     openModal('logModal');
   } catch (error) {
@@ -1041,41 +1090,35 @@ async function subscribeToPlan() {
   const user = getCurrentUser();
   if (!user) return openModal('logModal');
   if (user.isAdmin) return showToast('Admin premium access is already active.', 'info');
-  if (!window.PAYSTACK_PUBLIC_KEY) return showToast('Premium checkout is not configured yet.', 'error');
-
   const button = document.getElementById('subscribeBtn');
   if (button) button.disabled = true;
-  let paystack;
   try {
-    paystack = await paystackReady;
+    const data = await requestJson(`${API_BASE}/payments/initialize`, {
+      method: 'POST',
+      headers: attachAuthHeaders(),
+      body: JSON.stringify({ planId: 'go-pro' }),
+    });
+    window.location.assign(data.authorizationUrl);
   } catch (error) {
     if (button) button.disabled = false;
-    return showToast(error.message || 'Paystack checkout could not be loaded.', 'error');
+    showToast(error.message || 'Paystack checkout could not be loaded.', 'error');
   }
+}
 
-  const handler = paystack.setup({
-    key: window.PAYSTACK_PUBLIC_KEY,
-    email: user.email,
-    amount: Number(window.PAYSTACK_AMOUNT || 299),
-    currency: window.PAYSTACK_CURRENCY || 'USD',
-    ref: `ink-${Date.now()}`,
-    callback: function (transaction) {
-      void (async () => {
-        try {
-          const data = await requestJson(`${API_BASE}/subscribe`, { method: 'POST', headers: attachAuthHeaders(), body: JSON.stringify({ planId: 'go-pro', reference: transaction.reference }) });
-          setCurrentUser(data.user);
-          renderProfileSummary();
-          showToast('Premium unlocked. Welcome to the deeper studio.', 'success');
-        } catch (error) {
-          showToast(error.message || 'Payment verification failed.', 'error');
-        } finally {
-          if (button) button.disabled = false;
-        }
-      })();
-    },
-    onClose: () => { if (button) button.disabled = false; },
-  });
-  handler.openIframe();
+async function handlePaymentReturn() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('payment') !== 'return') return;
+  const reference = params.get('reference') || params.get('trxref');
+  window.history.replaceState({}, document.title, window.location.pathname);
+  if (!reference) return showToast('Payment was cancelled. No charge was verified.', 'info');
+  try {
+    const data = await requestJson(`${API_BASE}/subscribe`, { method: 'POST', headers: attachAuthHeaders(), body: JSON.stringify({ planId: 'go-pro', reference }) });
+    setCurrentUser(data.user);
+    renderProfileSummary();
+    showToast('Premium unlocked. Welcome to the deeper studio.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Payment verification failed. No premium access was granted.', 'error');
+  }
 }
 
 const guideSteps = [
@@ -1180,6 +1223,8 @@ function bindEvents() {
   document.getElementById('regForm')?.addEventListener('submit', handleRegister);
   document.getElementById('logForm')?.addEventListener('submit', handleLogin);
   document.getElementById('forgotPasswordLink')?.addEventListener('click', requestPasswordReset);
+  document.getElementById('resetRequestForm')?.addEventListener('submit', requestPasswordReset);
+  document.getElementById('resetPasswordForm')?.addEventListener('submit', submitPasswordReset);
   document.getElementById('challengeSelect')?.addEventListener('change', updateChallengeSummary);
   document.getElementById('customChallenge')?.addEventListener('input', updateChallengeSummary);
   document.getElementById('mainSearch')?.addEventListener('input', async (event) => {
@@ -1223,6 +1268,7 @@ function bindEvents() {
   });
   document.getElementById('supportChatForm')?.addEventListener('submit', submitSupportChat);
   document.getElementById('supportChatModalForm')?.addEventListener('submit', submitSupportChat);
+  document.getElementById('feedbackForm')?.addEventListener('submit', submitFeedback);
   document.getElementById('supportChatFab')?.addEventListener('click', openSupportChatModal);
   document.querySelectorAll('[data-close-modal="supportChatModal"]').forEach((button) => {
     button.addEventListener('click', closeSupportChatModal);
@@ -1236,6 +1282,7 @@ function bindEvents() {
       closeModal('logModal');
       closeModal('emailModal');
       closeModal('guideModal');
+      closeModal('resetModal');
     });
   });
 
@@ -1368,6 +1415,7 @@ async function initApp() {
     showToast(`Welcome back, ${initialUser.displayName || initialUser.username}.`, 'success');
   }
   await resetPasswordFromLink();
+  await handlePaymentReturn();
 }
 
 window.addEventListener('DOMContentLoaded', initApp);
