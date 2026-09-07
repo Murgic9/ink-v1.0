@@ -245,7 +245,9 @@ async function renderChatUsers() {
     const item = document.createElement('div');
     item.className = 'approval-item';
     item.style.cursor = 'pointer';
-      item.innerHTML = `<div><strong>${escapeHtml(userId)}</strong><div class="meta">${userMessages.length} messages</div></div><span class="status-pill published">Live</span>`;
+      const sender = userMessages.find((message) => message.displayName || message.email) || {};
+      const hasUnread = userMessages.some((message) => message.status === 'unread');
+      item.innerHTML = `<div><strong>${escapeHtml(sender.displayName || userId)}</strong><div class="meta">${escapeHtml(sender.email || 'Account email unavailable')}</div><div class="meta">${userMessages.length} messages</div></div><span class="status-pill ${hasUnread ? 'draft' : 'published'}">${hasUnread ? 'Unread' : 'Read'}</span>`;
       item.addEventListener('click', () => renderConversation(userId, messages));
     container.appendChild(item);
     });

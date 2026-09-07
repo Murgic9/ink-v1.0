@@ -240,12 +240,12 @@ async function loadPaystackConfig() {
   try {
     const data = await requestJson(`${API_BASE}/config`);
     window.PAYSTACK_PUBLIC_KEY = data.paystackPublicKey || '';
-    window.PAYSTACK_CURRENCY = data.paystackCurrency || 'USD';
-    window.PAYSTACK_AMOUNT = Number(data.paystackAmount || 299);
+    window.PAYSTACK_CURRENCY = data.paystackCurrency || 'NGN';
+    window.PAYSTACK_AMOUNT = Number(data.paystackAmount || 299900);
     const amountLabel = document.getElementById('planPrice');
     if (amountLabel) {
       const amount = window.PAYSTACK_AMOUNT / 100;
-      const symbol = window.PAYSTACK_CURRENCY === 'USD' ? '$' : `${window.PAYSTACK_CURRENCY} `;
+      const symbol = window.PAYSTACK_CURRENCY === 'NGN' ? '₦' : window.PAYSTACK_CURRENCY === 'USD' ? '$' : `${window.PAYSTACK_CURRENCY} `;
       amountLabel.innerHTML = `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}<span>/month</span>`;
     }
     const label = document.getElementById('paystackModeLabel');
@@ -476,6 +476,7 @@ async function submitSupportChat(event) {
     const containerId = form.id === 'supportChatModalForm' ? 'supportChatModalMessages' : 'supportChatMessages';
     await loadSupportMessages(document.getElementById(containerId));
     showSupportSurvey(containerId);
+    showToast('Your message reached Luma Support.', 'success');
   } catch (error) {
     showToast(error.message || 'Unable to send your support message.', 'error');
   } finally {
@@ -684,6 +685,7 @@ function renderPosts() {
           <span>${escapeHtml(post.category || 'poetry')}</span>
           <span>${new Date(post.createdAt).toLocaleDateString()}</span>
         </div>
+        ${(getCurrentUser()?.id === post.authorId || getCurrentUser()?.isAdmin) ? `<button class="react-btn danger writeup-delete" type="button" data-delete="${post.id}" aria-label="Delete ${escapeHtml(post.title)}" title="Delete writeup">🗑 Delete</button>` : ''}
         <div class="comment-block">
           <div class="comment-summary">Comments (${post.commentsCount || comments.length})</div>
           ${comments.slice(0, 2).map((comment) => `

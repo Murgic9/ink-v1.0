@@ -66,6 +66,49 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   });
   assert.equal(avatarUpdate.user.avatar, './Img/avatar-sunrise.svg');
 
+  const uploadedAvatar = 'data:image/jpeg;base64,' + Buffer.from('profile-image-fixture').toString('base64');
+  const uploadedAvatarResponse = await request('/users/me', {
+    method: 'PUT',
+    headers: auth,
+    body: JSON.stringify({ avatar: uploadedAvatar }),
+  });
+  assert.equal(uploadedAvatarResponse.user.avatar, uploadedAvatar);
+  const refreshedUser = await request('/auth/me', { headers: auth });
+  assert.equal(refreshedUser.user.avatar, uploadedAvatar);
+
+  const writing = await request('/writings', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ title: 'Persistent voice', content: 'This writing must remain attached to the account.' }),
+  });
+  const supportMessage = await request('/support/messages', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ userId: 'user-admin', text: 'Please help with my persistent profile.' }),
+  });
+  assert.equal(supportMessage.message.userId, registered.user.id);
+  assert.equal(supportMessage.message.email, email);
+  assert.equal(supportMessage.message.status, 'unread');
+  const persistenceFeedback = await request('/feedback', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ category: 'Account', message: 'My account should remain available after logout.' }),
+  });
+
+  const logoutLogin = await request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username: email, password: 'password123' }),
+  });
+  assert.equal(logoutLogin.user.id, registered.user.id);
+  assert.equal(logoutLogin.user.avatar, uploadedAvatar);
+  assert.equal(logoutLogin.user.displayName, 'Test Writer');
+  const persistedWritings = await request('/writings/mine', { headers: { Authorization: `Bearer ${logoutLogin.token}` } });
+  assert.ok(persistedWritings.writings.some((item) => item.id === writing.writing.id));
+  const adminFeedback = await request('/admin/feedback', { headers: { Authorization: `Bearer ${admin.token}` } });
+  assert.ok(adminFeedback.feedback.some((item) => item.id === persistenceFeedback.feedback.id && item.userId === registered.user.id && item.email === email));
+  const adminSupport = await request('/admin/support/messages', { headers: { Authorization: `Bearer ${admin.token}` } });
+  assert.ok(adminSupport.messages.some((item) => item.id === supportMessage.message.id && item.displayName === 'Test Writer' && item.email === email));
+
   const premiumAvatarResponse = await fetch(`${baseUrl}/users/me`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...auth },

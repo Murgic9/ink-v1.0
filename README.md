@@ -38,10 +38,12 @@ Set these environment variables in Render:
 - `PAYSTACK_PUBLIC_KEY` with your Paystack public key.
 - `PAYSTACK_SECRET_KEY` with your Paystack secret key. Keep this server-side only.
 - `PAYSTACK_TEST_MODE=true` while testing, then set it to `false` for live payments.
-- `PAYSTACK_CURRENCY=USD` (or the currency configured in your Paystack account).
-- `PAYSTACK_AMOUNT=299` in Paystack's smallest currency unit.
+- `PAYSTACK_CURRENCY=NGN` (or the currency configured in your Paystack account).
+- `PAYSTACK_AMOUNT=299900` in Paystack's smallest currency unit (₦2,999.00).
 
 Important: the included store is file-backed. Render services have ephemeral filesystems, so production user, writing, streak, reset-token, and chat data requires a paid Render persistent disk mounted at `/var/data` and `DATA_DIR=/var/data`. If that path is unavailable, the service falls back to temporary storage and logs a warning; data in that fallback can be lost on restart or deploy. A MongoDB URI may be configured for future migration, but the current routes use the file store.
+
+Paystack keys must match the mode: use `pk_test_` and `sk_test_` keys with `PAYSTACK_TEST_MODE=true`, or `pk_live_` and `sk_live_` keys with `PAYSTACK_TEST_MODE=false`.
 
 ### Render launch checklist
 

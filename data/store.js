@@ -69,6 +69,8 @@ const seedData = {
   subscriptions: [],
   reports: [],
   feedback: [],
+  supportMessages: [],
+  supportSurveys: [],
   prompts: [
     { id: 'prompt-poetry-1', category: 'Poetry', text: 'Write about a room that remembers your name.' },
     { id: 'prompt-poetry-2', category: 'Poetry', text: 'Write a poem about a hope that sounds like rain.' },
@@ -121,7 +123,7 @@ function readStore() {
   try {
     const raw = fs.readFileSync(dataFile, 'utf8');
     const data = JSON.parse(raw);
-    const defaults = ['users', 'writings', 'notifications', 'subscriptions', 'reports', 'feedback', 'prompts'];
+    const defaults = ['users', 'writings', 'notifications', 'subscriptions', 'reports', 'feedback', 'supportMessages', 'supportSurveys', 'prompts'];
     defaults.forEach((key) => {
       if (!Array.isArray(data[key])) data[key] = JSON.parse(JSON.stringify(seedData[key]));
     });

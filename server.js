@@ -211,12 +211,25 @@ function isAllowedAvatar(value) {
 }
 
 function getPaystackAmount() {
-  const amount = Number(process.env.PAYSTACK_AMOUNT || 299);
-  return Number.isInteger(amount) && amount > 0 ? amount : 299;
+  const amount = Number(process.env.PAYSTACK_AMOUNT || 299900);
+  return Number.isInteger(amount) && amount > 0 ? amount : 299900;
 }
 
 function getPaystackCurrency() {
-  return String(process.env.PAYSTACK_CURRENCY || 'USD').trim().toUpperCase();
+  return String(process.env.PAYSTACK_CURRENCY || 'NGN').trim().toUpperCase();
+}
+
+function isPaystackTestMode() {
+  return String(process.env.PAYSTACK_TEST_MODE || 'true').toLowerCase() === 'true';
+}
+
+function getPaystackConfigurationError() {
+  const secretKey = String(process.env.PAYSTACK_SECRET_KEY || '');
+  const expectsTestKey = isPaystackTestMode();
+  if (!secretKey) return 'PAYSTACK_SECRET_KEY is missing.';
+  if (expectsTestKey && !secretKey.startsWith('sk_test_')) return 'PAYSTACK_TEST_MODE=true requires a sk_test_ secret key.';
+  if (!expectsTestKey && !secretKey.startsWith('sk_live_')) return 'PAYSTACK_TEST_MODE=false requires a sk_live_ secret key.';
+  return '';
 }
 
 function buildNotification({ userId, type, message, relatedId = null }) {
@@ -242,7 +255,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/config', (req, res) => {
   res.json({
     paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || '',
-    paystackTestMode: String(process.env.PAYSTACK_TEST_MODE || 'true').toLowerCase() === 'true',
+    paystackTestMode: isPaystackTestMode(),
     paystackCurrency: getPaystackCurrency(),
     paystackAmount: getPaystackAmount(),
     clientUrl: process.env.CLIENT_URL || 'http://localhost:5000',
@@ -767,12 +780,17 @@ app.post('/api/support/messages', requireAuth, (req, res) => {
 
   const store = readStore();
   store.supportMessages = store.supportMessages || [];
+  const user = store.users.find((item) => item.id === req.user.id);
+  if (!user) return res.status(404).json({ message: 'User account not found.' });
   const message = {
     id: `support-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    userId: req.user.id,
+    userId: user.id,
+    email: user.email,
+    displayName: user.displayName || user.username,
     from: 'You',
-    priority: Boolean(store.users.find((user) => user.id === req.user.id)?.isPaid),
+    priority: Boolean(user.isPaid || user.isAdmin),
     text: text.slice(0, 240),
+    status: 'unread',
     createdAt: new Date().toISOString(),
   };
   store.supportMessages.push(message);
@@ -794,9 +812,11 @@ app.post('/api/feedback', requireAuth, (req, res) => {
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   const category = typeof req.body?.category === 'string' ? req.body.category.trim().slice(0, 40) : 'General';
   if (!message) return res.status(400).json({ message: 'Feedback cannot be empty.' });
+  if (message.length > 2000) return res.status(400).json({ message: 'Feedback must be 2000 characters or fewer.' });
 
   const store = readStore();
   const user = store.users.find((item) => item.id === req.user.id);
+  if (!user) return res.status(404).json({ message: 'User account not found.' });
   const feedback = {
     id: `feedback-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     userId: req.user.id,
@@ -869,10 +889,13 @@ app.post('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) =>
   store.supportMessages = store.supportMessages || [];
   const message = {
     id: `support-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    userId,
+    userId: user.id,
+    email: user.email,
+    displayName: user.displayName || user.username,
     from: SUPPORT_NAME,
     priority: true,
     text: messageText.slice(0, 240),
+    status: 'read',
     createdAt: new Date().toISOString(),
   };
   store.supportMessages.push(message);
@@ -997,7 +1020,11 @@ app.post('/api/payments/initialize', requireAuth, async (req, res) => {
   const user = readStore().users.find((item) => item.id === req.user.id);
   if (!user) return res.status(404).json({ message: 'User not found.' });
   if (user.isPaid || user.isAdmin) return res.status(409).json({ message: 'Premium access is already active.' });
-  if (!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({ message: 'Premium checkout is not configured.' });
+  const paystackConfigurationError = getPaystackConfigurationError();
+  if (paystackConfigurationError) {
+    console.error(`Paystack configuration error: ${paystackConfigurationError}`);
+    return res.status(503).json({ message: 'Premium checkout is not configured correctly. Please contact support.' });
+  }
 
   const reference = `ink-${user.id}-${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;
   try {
@@ -1019,6 +1046,7 @@ app.post('/api/payments/initialize', requireAuth, async (req, res) => {
     clearTimeout(timeout);
     const result = await response.json();
     if (!response.ok || result.status !== true || !result.data?.authorization_url) {
+      console.error('Paystack initialization failed:', result.message || `HTTP ${response.status}`);
       return res.status(502).json({ message: 'Paystack could not initialize this payment.' });
     }
     return res.json({ authorizationUrl: result.data.authorization_url, reference: result.data.reference });
