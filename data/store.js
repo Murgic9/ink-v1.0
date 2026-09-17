@@ -3,11 +3,10 @@ const path = require('path');
 
 let dataDir = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
-  : process.env.NODE_ENV === 'production'
-    ? path.join(require('os').tmpdir(), 'inkurgic-data')
-    : __dirname;
+  : __dirname;
 let dataFile = path.join(dataDir, 'app-data.json');
 let usingFallback = false;
+let mongoSynced = false;
 
 const seedData = {
   users: [
@@ -133,10 +132,44 @@ function readStore() {
   }
 }
 
-function writeStore(data) {
+let mongooseInstance = null;
+let AppDataModel = null;
+
+function initMongoSync(mongoose) {
+  try {
+    mongooseInstance = mongoose;
+    if (!mongooseInstance) return;
+    if (!AppDataModel) {
+      const schema = new mongooseInstance.Schema({
+        key: { type: String, unique: true },
+        data: mongooseInstance.Schema.Types.Mixed,
+      }, { timestamps: true });
+      AppDataModel = mongooseInstance.models.AppDataStore || mongooseInstance.model('AppDataStore', schema);
+    }
+    AppDataModel.findOne({ key: 'inkurgic_data' }).then((doc) => {
+      if (doc && doc.data) {
+        const current = readStore();
+        const merged = { ...current, ...doc.data };
+        writeStore(merged, false);
+      } else {
+        const current = readStore();
+        AppDataModel.create({ key: 'inkurgic_data', data: current }).catch(() => {});
+      }
+    }).catch((err) => {
+      console.warn('MongoDB store sync warning:', err.message);
+    });
+  } catch (err) {
+    console.warn('MongoDB store init error:', err.message);
+  }
+}
+
+function writeStore(data, syncToMongo = true) {
   ensureStore();
   fs.writeFileSync(dataFile, JSON.stringify(data, null, 2), 'utf8');
+  if (syncToMongo && AppDataModel && mongooseInstance && mongooseInstance.connection?.readyState === 1) {
+    AppDataModel.updateOne({ key: 'inkurgic_data' }, { data }, { upsert: true }).catch(() => {});
+  }
   return data;
 }
 
-module.exports = { readStore, writeStore, seedData };
+module.exports = { readStore, writeStore, seedData, initMongoSync };

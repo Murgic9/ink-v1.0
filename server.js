@@ -54,6 +54,17 @@ const allowedOrigins = [
   'http://127.0.0.1:3000',
 ].filter(Boolean);
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  const cleanOrigin = origin.replace(/\/$/, '');
+  const cleanClientUrl = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+  if (cleanClientUrl && cleanOrigin === cleanClientUrl) return true;
+  if (allowedOrigins.some((allowed) => allowed && cleanOrigin === allowed.replace(/\/$/, ''))) return true;
+  if (/^https:\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)*\.vercel\.app$/i.test(cleanOrigin)) return true;
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(cleanOrigin)) return true;
+  return false;
+}
+
 function getMailer() {
   if (!nodemailer || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
   return nodemailer.createTransport({
@@ -141,11 +152,10 @@ app.use(helmet({
 app.use(compression());
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
-
-    return callback(new Error('Not allowed by CORS'));
+    return callback(null, false);
   },
   credentials: true,
 }));
@@ -211,12 +221,13 @@ function isAllowedAvatar(value) {
 }
 
 function getPaystackAmount() {
-  const amount = Number(process.env.PAYSTACK_AMOUNT || 299900);
-  return Number.isInteger(amount) && amount > 0 ? amount : 299900;
+  const envAmount = Number(process.env.PAYSTACK_AMOUNT);
+  if (Number.isInteger(envAmount) && envAmount > 0) return envAmount;
+  return getPaystackCurrency() === 'USD' ? 299 : 299900;
 }
 
 function getPaystackCurrency() {
-  return String(process.env.PAYSTACK_CURRENCY || 'NGN').trim().toUpperCase();
+  return String(process.env.PAYSTACK_CURRENCY || 'USD').trim().toUpperCase();
 }
 
 function isPaystackTestMode() {
@@ -230,6 +241,30 @@ function getPaystackConfigurationError() {
   if (expectsTestKey && !secretKey.startsWith('sk_test_')) return 'PAYSTACK_TEST_MODE=true requires a sk_test_ secret key.';
   if (!expectsTestKey && !secretKey.startsWith('sk_live_')) return 'PAYSTACK_TEST_MODE=false requires a sk_live_ secret key.';
   return '';
+}
+
+function recordUserActivity(user, activityType = 'writing') {
+  if (!user) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const streak = user.streak || { goal: 100, current: 0, best: 0, checkIns: [] };
+  streak.checkIns = Array.isArray(streak.checkIns) ? streak.checkIns : [];
+  streak.activityLog = Array.isArray(streak.activityLog) ? streak.activityLog : [];
+
+  streak.activityLog.push({
+    type: activityType,
+    date: today,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (!streak.checkIns.includes(today)) {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    streak.current = streak.checkIns.includes(yesterday) ? (streak.current || 0) + 1 : 1;
+    streak.best = Math.max(streak.best || 0, streak.current);
+    streak.checkIns.push(today);
+  }
+
+  user.streak = streak;
+  return streak;
 }
 
 function buildNotification({ userId, type, message, relatedId = null }) {
@@ -462,9 +497,9 @@ app.get('/api/users', (req, res) => {
 
   const filtered = q
     ? users.filter((user) => {
-        const text = `${user.username} ${user.displayName} ${user.bio}`.toLowerCase();
-        return text.includes(String(q).toLowerCase());
-      })
+      const text = `${user.username} ${user.displayName} ${user.bio}`.toLowerCase();
+      return text.includes(String(q).toLowerCase());
+    })
     : users;
 
   return res.json({ users: filtered });
@@ -598,6 +633,7 @@ app.post('/api/writings', requireAuth, async (req, res) => {
     };
 
     store.writings.unshift(writing);
+    if (author) recordUserActivity(author, writing.status === 'draft' ? 'saved_draft' : 'published_poem');
     writeStore(store);
     await sendUserEmail(author, writing.status === 'draft' ? 'Your INKurgic draft was saved' : 'Your writing is live on INKurgic', `Your writing "${writing.title}" was ${writing.status === 'draft' ? 'saved as a draft' : 'published'} successfully.`);
     return res.status(201).json({ writing });
@@ -632,8 +668,9 @@ app.put('/api/writings/:id', requireAuth, async (req, res) => {
   writing.status = status || writing.status;
   writing.updatedAt = new Date().toISOString();
 
-  writeStore(store);
   const author = store.users.find((user) => user.id === writing.authorId);
+  if (author) recordUserActivity(author, 'updated_writing');
+  writeStore(store);
   await sendUserEmail(author, 'Your INKurgic writing was updated', `Your writing "${writing.title}" was updated successfully.`);
   return res.json({ writing });
 });
@@ -676,16 +713,18 @@ app.post('/api/writings/:id/like', requireAuth, async (req, res) => {
     const author = store.users.find((user) => user.id === writing.authorId);
     if (author && author.id !== req.user.id) {
       const notification = buildNotification({
-          userId: author.id,
-          type: 'like',
-          message: `${req.user.username} liked your writing.`,
-          relatedId: writing.id,
-        });
+        userId: author.id,
+        type: 'like',
+        message: `${req.user.username} liked your writing.`,
+        relatedId: writing.id,
+      });
       store.notifications.unshift(notification);
       await sendUserEmail(author, 'Someone liked your INKurgic writing', notification.message);
     }
   }
 
+  const currentUser = store.users.find((user) => user.id === req.user.id);
+  if (currentUser) recordUserActivity(currentUser, 'like');
   writeStore(store);
   return res.json({ likes: writing.likes.length, liked: !hasLiked });
 });
@@ -713,15 +752,16 @@ app.post('/api/writings/:id/comment', requireAuth, async (req, res) => {
   };
 
   writing.comments.push(comment);
+  if (author) recordUserActivity(author, 'comment');
 
   const targetAuthor = store.users.find((user) => user.id === writing.authorId);
   if (targetAuthor && targetAuthor.id !== req.user.id) {
     const notification = buildNotification({
-        userId: targetAuthor.id,
-        type: 'comment',
-        message: `${author ? author.displayName : req.user.username} commented on your writing.`,
-        relatedId: writing.id,
-      });
+      userId: targetAuthor.id,
+      type: 'comment',
+      message: `${author ? author.displayName : req.user.username} commented on your writing.`,
+      relatedId: writing.id,
+    });
     store.notifications.unshift(notification);
     await sendUserEmail(targetAuthor, 'Someone commented on your INKurgic writing', notification.message);
   }
@@ -787,9 +827,11 @@ app.post('/api/support/messages', requireAuth, (req, res) => {
     userId: user.id,
     email: user.email,
     displayName: user.displayName || user.username,
+    senderType: 'user',
+    senderName: user.displayName || user.username,
     from: 'You',
     priority: Boolean(user.isPaid || user.isAdmin),
-    text: text.slice(0, 240),
+    text: text.slice(0, 500),
     status: 'unread',
     createdAt: new Date().toISOString(),
   };
@@ -836,7 +878,17 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
   const store = readStore();
   const writings = store.writings || [];
   const supportMessages = store.supportMessages || [];
+  const feedbackList = store.feedback || [];
   const activeStreaks = store.users.filter((user) => Number(user.streak?.current) > 0).length;
+  const subscriptions = (store.subscriptions || []).map((sub) => {
+    const subscriber = store.users.find((u) => u.id === sub.userId);
+    return {
+      ...sub,
+      userName: sub.userName || subscriber?.displayName || subscriber?.username || 'Writer',
+      email: sub.email || subscriber?.email || '',
+      approved: sub.approved !== undefined ? sub.approved : Boolean(sub.active),
+    };
+  });
   return res.json({
     stats: {
       users: store.users.length,
@@ -846,15 +898,17 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
       followers: store.users.reduce((sum, user) => sum + (user.followers || []).length, 0),
       drafts: writings.filter((writing) => writing.status === 'draft').length,
       supportMessages: supportMessages.length,
-      feedback: store.feedback.length,
-      unreadFeedback: store.feedback.filter((item) => item.status !== 'read').length,
+      feedback: feedbackList.length,
+      unreadFeedback: feedbackList.filter((item) => item.status !== 'read').length,
       activeStreaks,
       admins: store.users.filter((user) => user.isAdmin).length,
+      subscriptionsCount: subscriptions.length,
     },
     users: store.users.map(sanitizeUser),
     writings,
     notifications: store.notifications,
-    subscriptions: store.subscriptions || [],
+    subscriptions,
+    feedback: feedbackList,
   });
 });
 
@@ -892,13 +946,23 @@ app.post('/api/admin/support/messages', requireAuth, requireAdmin, (req, res) =>
     userId: user.id,
     email: user.email,
     displayName: user.displayName || user.username,
+    senderType: 'admin',
+    senderName: SUPPORT_NAME,
     from: SUPPORT_NAME,
     priority: true,
-    text: messageText.slice(0, 240),
+    text: messageText.slice(0, 500),
     status: 'read',
     createdAt: new Date().toISOString(),
   };
   store.supportMessages.push(message);
+
+  // Mark all previous messages in this conversation as read
+  store.supportMessages.forEach((item) => {
+    if (item.userId === userId) {
+      item.status = 'read';
+    }
+  });
+
   writeStore(store);
   store.notifications = store.notifications || [];
   store.notifications.unshift(buildNotification({
@@ -981,7 +1045,26 @@ app.get('/api/streak', requireAuth, (req, res) => {
   const store = readStore();
   const user = store.users.find((item) => item.id === req.user.id);
   if (!user) return res.status(404).json({ message: 'User not found.' });
-  return res.json({ streak: user.streak || { goal: 100, current: 0, best: 0, checkIns: [] } });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const streak = user.streak || { goal: 100, current: 0, best: 0, checkIns: [] };
+  streak.checkIns = Array.isArray(streak.checkIns) ? streak.checkIns : [];
+
+  const wroteToday = (store.writings || []).some(
+    (w) => w.authorId === user.id && (String(w.createdAt).slice(0, 10) === today || String(w.updatedAt).slice(0, 10) === today)
+  );
+  if (wroteToday && !streak.checkIns.includes(today)) {
+    recordUserActivity(user, 'writing');
+    writeStore(store);
+  }
+
+  const activeToday = (user.streak?.checkIns || []).includes(today);
+  return res.json({
+    streak: {
+      ...(user.streak || streak),
+      activeToday,
+    },
+  });
 });
 
 app.post('/api/streak/check-in', requireAuth, async (req, res) => {
@@ -990,18 +1073,11 @@ app.post('/api/streak/check-in', requireAuth, async (req, res) => {
   if (!user) return res.status(404).json({ message: 'User not found.' });
 
   const today = new Date().toISOString().slice(0, 10);
-  const streak = user.streak || { goal: 100, current: 0, best: 0, checkIns: [] };
-  streak.checkIns = Array.isArray(streak.checkIns) ? streak.checkIns : [];
-  if (streak.checkIns.includes(today)) return res.json({ streak, alreadyCheckedIn: true });
-
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  streak.current = streak.checkIns.includes(yesterday) ? streak.current + 1 : 1;
-  streak.best = Math.max(streak.best || 0, streak.current);
-  streak.checkIns.push(today);
-  user.streak = streak;
+  const alreadyCheckedIn = (user.streak?.checkIns || []).includes(today);
+  const streak = recordUserActivity(user, 'practice');
   writeStore(store);
   await sendUserEmail(user, 'Your INKurgic streak was updated', `You checked in today and reached a ${streak.current}-day writing streak.`);
-  return res.json({ streak, alreadyCheckedIn: false });
+  return res.json({ streak: { ...streak, activeToday: true }, alreadyCheckedIn });
 });
 
 app.patch('/api/streak', requireAuth, async (req, res) => {
@@ -1027,6 +1103,9 @@ app.post('/api/payments/initialize', requireAuth, async (req, res) => {
   }
 
   const reference = `ink-${user.id}-${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;
+  const amount = getPaystackAmount();
+  const currency = getPaystackCurrency();
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -1035,8 +1114,8 @@ app.post('/api/payments/initialize', requireAuth, async (req, res) => {
       headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: user.email,
-        amount: getPaystackAmount(),
-        currency: getPaystackCurrency(),
+        amount,
+        currency,
         reference,
         callback_url: `${CLIENT_URL}/?payment=return`,
         metadata: { userId: user.id, planId: 'go-pro' },
@@ -1044,13 +1123,17 @@ app.post('/api/payments/initialize', requireAuth, async (req, res) => {
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!response.ok || result.status !== true || !result.data?.authorization_url) {
-      console.error('Paystack initialization failed:', result.message || `HTTP ${response.status}`);
-      return res.status(502).json({ message: 'Paystack could not initialize this payment.' });
+      console.error('Paystack initialization failed:', result.message || `HTTP ${response.status}`, result);
+      const userMessage = result.message
+        ? `Paystack: ${result.message}`
+        : 'Paystack could not initialize this payment.';
+      return res.status(502).json({ message: userMessage });
     }
     return res.json({ authorizationUrl: result.data.authorization_url, reference: result.data.reference });
   } catch (error) {
+    console.error('Paystack initialize error:', error);
     return res.status(error.name === 'AbortError' ? 504 : 502).json({ message: 'Unable to connect to Paystack right now.' });
   }
 });
@@ -1087,7 +1170,7 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
       signal: verificationController.signal,
     });
     clearTimeout(verificationTimeout);
-    const result = await verification.json();
+    const result = await verification.json().catch(() => ({}));
     const expectedAmount = getPaystackAmount();
     const expectedCurrency = getPaystackCurrency();
     if (!verification.ok || result.status !== true || result.data?.status !== 'success' || result.data?.customer?.email?.toLowerCase() !== user.email.toLowerCase() || Number(result.data?.amount) !== expectedAmount || String(result.data?.currency).toUpperCase() !== expectedCurrency) {
@@ -1102,8 +1185,13 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
   store.subscriptions.push({
     id: `sub-${Date.now()}`,
     userId: user.id,
+    userName: user.displayName || user.username,
+    email: user.email,
     planId,
+    amount: getPaystackAmount(),
+    currency: getPaystackCurrency(),
     active: true,
+    approved: true,
     reference: String(reference),
     createdAt: new Date().toISOString(),
   });

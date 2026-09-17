@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const { initMongoSync } = require('../data/store');
+
 async function connectDB() {
   const mongoUri = process.env.MONGODB_URI;
 
@@ -13,6 +15,7 @@ async function connectDB() {
       serverSelectionTimeoutMS: 5000,
     });
     console.log('MongoDB connected successfully.');
+    initMongoSync(mongoose);
     return true;
   } catch (error) {
     console.error('MongoDB connection failed:', error.message);

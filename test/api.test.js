@@ -144,9 +144,11 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   const prompts = await request('/prompts');
   assert.ok(prompts.prompts.length >= 10);
   const initialStreak = await request('/streak', { headers: auth });
-  assert.equal(initialStreak.streak.current, 0);
+  assert.equal(initialStreak.streak.current, 1);
+  assert.equal(initialStreak.streak.activeToday, true);
   const checkIn = await request('/streak/check-in', { method: 'POST', headers: auth });
   assert.equal(checkIn.streak.current, 1);
+  assert.equal(checkIn.alreadyCheckedIn, true);
 
   const resetRequest = await request('/auth/forgot-password', {
     method: 'POST',
@@ -172,4 +174,18 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   });
   assert.equal(promoted.user.isAdmin, true);
   assert.equal(promoted.user.isPaid, true);
+
+  const config = await request('/config');
+  assert.equal(config.paystackCurrency, 'USD');
+  assert.equal(config.paystackAmount, 299);
+
+  const adminReply = await request('/admin/support/messages', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${admin.token}` },
+    body: JSON.stringify({ userId: registered.user.id, text: 'Hello from Luma support.' }),
+  });
+  assert.equal(adminReply.message.senderType, 'admin');
+
+  const userMessagesAfterReply = await request('/support/messages', { headers: auth });
+  assert.ok(userMessagesAfterReply.messages.some((m) => m.senderType === 'admin'));
 });
