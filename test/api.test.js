@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inkurgic-test-'));
 process.env.NODE_ENV = 'test';
@@ -10,7 +11,9 @@ process.env.DATA_DIR = dataDir;
 process.env.JWT_SECRET = 'inkurgic-test-secret-that-is-long-enough';
 process.env.ADMIN_EMAIL = 'inkurgic@gmail.com';
 
-const { app } = require('../server');
+const serverModule = require('../server');
+const { app } = serverModule;
+const { readStore, writeStore } = require('../data/store');
 
 let server;
 let baseUrl;
@@ -156,6 +159,25 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   });
   assert.match(resetRequest.message, /reset link/i);
 
+  const resetToken = 'test-reset-token';
+  const resetStore = readStore();
+  const resetUser = resetStore.users.find((user) => user.id === registered.user.id);
+  resetUser.passwordReset = {
+    tokenHash: crypto.createHash('sha256').update(resetToken).digest('hex'),
+    expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+  };
+  writeStore(resetStore);
+  const resetResponse = await request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token: resetToken, password: 'newpassword123' }),
+  });
+  assert.match(resetResponse.message, /successfully/i);
+  const resetLogin = await request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username: email, password: 'newpassword123' }),
+  });
+  assert.equal(resetLogin.user.id, registered.user.id);
+
   const overview = await request('/admin/overview', { headers: { Authorization: `Bearer ${admin.token}` } });
   assert.ok(overview.stats.users >= 2);
 
@@ -178,6 +200,49 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   const config = await request('/config');
   assert.equal(config.paystackCurrency, 'USD');
   assert.equal(config.paystackAmount, 299);
+
+  const paymentUsername = `premium${Date.now()}`;
+  const paymentEmail = `${paymentUsername}@example.com`;
+  const paymentUser = await request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username: paymentUsername, displayName: 'Premium Writer', email: paymentEmail, password: 'password123' }),
+  });
+  const paymentAuth = { Authorization: `Bearer ${paymentUser.token}` };
+
+  process.env.PAYSTACK_SECRET_KEY = 'sk_test_inkurgic';
+  const paystackCalls = [];
+  serverModule.paystackFetch = async (url, options = {}) => {
+    paystackCalls.push({ url, options });
+    if (url.includes('/transaction/initialize')) {
+      return new Response(JSON.stringify({ status: true, data: { authorization_url: 'https://checkout.paystack.com/test', reference: 'paystack-test-reference' } }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      status: true,
+      data: {
+        status: 'success',
+        amount: 299,
+        currency: 'USD',
+        customer: { email: paymentEmail },
+      },
+    }), { status: 200 });
+  };
+  const paymentInit = await request('/payments/initialize', {
+    method: 'POST',
+    headers: paymentAuth,
+    body: JSON.stringify({ planId: 'go-pro' }),
+  });
+  assert.equal(paymentInit.authorizationUrl, 'https://checkout.paystack.com/test');
+  const initPayload = JSON.parse(paystackCalls[0].options.body);
+  assert.equal(initPayload.amount, 299);
+  assert.equal(initPayload.currency, 'USD');
+  const paymentComplete = await request('/subscribe', {
+    method: 'POST',
+    headers: paymentAuth,
+    body: JSON.stringify({ planId: 'go-pro', reference: 'paystack-test-reference' }),
+  });
+  assert.equal(paymentComplete.user.isPaid, true);
+  assert.equal(paystackCalls.length, 2);
+  serverModule.paystackFetch = null;
 
   const adminReply = await request('/admin/support/messages', {
     method: 'POST',

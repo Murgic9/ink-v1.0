@@ -21,7 +21,14 @@ function escapeHtml(text = '') {
 }
 
 function getAdminToken() {
-  return localStorage.getItem('ink_admin_token') || localStorage.getItem('ink_token');
+  const rawToken = localStorage.getItem('ink_admin_token') || localStorage.getItem('ink_token');
+  if (!rawToken) return null;
+  try {
+    const parsedToken = JSON.parse(rawToken);
+    return typeof parsedToken === 'string' ? parsedToken : rawToken;
+  } catch {
+    return rawToken;
+  }
 }
 
 async function requestAdminJson(url, options = {}) {

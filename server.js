@@ -221,13 +221,11 @@ function isAllowedAvatar(value) {
 }
 
 function getPaystackAmount() {
-  const envAmount = Number(process.env.PAYSTACK_AMOUNT);
-  if (Number.isInteger(envAmount) && envAmount > 0) return envAmount;
-  return getPaystackCurrency() === 'USD' ? 299 : 299900;
+  return 299;
 }
 
 function getPaystackCurrency() {
-  return String(process.env.PAYSTACK_CURRENCY || 'USD').trim().toUpperCase();
+  return 'USD';
 }
 
 function isPaystackTestMode() {
@@ -893,7 +891,7 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
     stats: {
       users: store.users.length,
       paidUsers: store.users.filter((user) => user.isPaid).length,
-      writings: writings.length,
+      writings: writings.filter((writing) => writing.status !== 'draft').length,
       notifications: store.notifications.length,
       followers: store.users.reduce((sum, user) => sum + (user.followers || []).length, 0),
       drafts: writings.filter((writing) => writing.status === 'draft').length,
@@ -1109,7 +1107,8 @@ app.post('/api/payments/initialize', requireAuth, async (req, res) => {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
-    const response = await fetch('https://api.paystack.co/transaction/initialize', {
+    const paystackFetch = module.exports.paystackFetch || fetch;
+    const response = await paystackFetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1126,10 +1125,13 @@ app.post('/api/payments/initialize', requireAuth, async (req, res) => {
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.status !== true || !result.data?.authorization_url) {
       console.error('Paystack initialization failed:', result.message || `HTTP ${response.status}`, result);
-      const userMessage = result.message
-        ? `Paystack: ${result.message}`
-        : 'Paystack could not initialize this payment.';
-      return res.status(502).json({ message: userMessage });
+      const providerMessage = String(result.message || '').toLowerCase();
+      const userMessage = providerMessage.includes('currency not supported')
+        ? 'Paystack is not enabled to accept USD on this merchant account. Enable USD for the Paystack account, then try again.'
+        : result.message
+          ? `Paystack: ${result.message}`
+          : 'Paystack could not initialize this payment.';
+      return res.status(providerMessage.includes('currency not supported') ? 503 : 502).json({ message: userMessage });
     }
     return res.json({ authorizationUrl: result.data.authorization_url, reference: result.data.reference });
   } catch (error) {
@@ -1165,7 +1167,8 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
   try {
     const verificationController = new AbortController();
     const verificationTimeout = setTimeout(() => verificationController.abort(), 10000);
-    const verification = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+    const paystackFetch = module.exports.paystackFetch || fetch;
+    const verification = await paystackFetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
       headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
       signal: verificationController.signal,
     });
@@ -1218,4 +1221,4 @@ if (require.main === module) {
   startServer();
 }
 
-module.exports = { app, startServer };
+module.exports = { app, startServer, paystackFetch: null };

@@ -177,9 +177,9 @@ function navigate(target) {
     section.classList.toggle('active', isActive);
   });
 
-  const navItems = document.querySelectorAll('.nav-links a');
+  const navItems = document.querySelectorAll('[data-navigate]');
   navItems.forEach((link) => {
-    const value = link.getAttribute('onclick')?.match(/navigate\('([^']+)'\)/)?.[1];
+    const value = link.dataset.navigate;
     link.style.opacity = value === target ? '1' : '0.75';
   });
 }
@@ -240,8 +240,8 @@ async function loadPaystackConfig() {
   try {
     const data = await requestJson(`${API_BASE}/config`);
     window.PAYSTACK_PUBLIC_KEY = data.paystackPublicKey || '';
-    window.PAYSTACK_CURRENCY = data.paystackCurrency || 'NGN';
-    window.PAYSTACK_AMOUNT = Number(data.paystackAmount || 299900);
+    window.PAYSTACK_CURRENCY = data.paystackCurrency || 'USD';
+    window.PAYSTACK_AMOUNT = Number(data.paystackAmount || 299);
     const amountLabel = document.getElementById('planPrice');
     if (amountLabel) {
       const amount = window.PAYSTACK_AMOUNT / 100;
@@ -249,7 +249,7 @@ async function loadPaystackConfig() {
       amountLabel.innerHTML = `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}<span>/month</span>`;
     }
     const label = document.getElementById('paystackModeLabel');
-    if (label) label.textContent = data.paystackTestMode ? 'Paystack test mode ready' : 'Secure Paystack checkout';
+    if (label) label.hidden = true;
   } catch (error) {
     showToast('Premium checkout is temporarily unavailable.', 'error');
   }
@@ -305,7 +305,7 @@ async function loadStreak() {
         <h3>Your writing forge</h3>
         <strong class="streak-number">${streak.current || 0}</strong>
         <p>day${streak.current === 1 ? '' : 's'} in your current streak</p>
-        <button class="btn primary" type="button" data-streak-check>${streak.checkIns?.includes(new Date().toISOString().slice(0, 10)) ? 'Checked in today' : 'Check in today'}</button>
+        <p class="streak-activity-note">Your streak updates automatically when you publish or save writing today.</p>
         <div class="streak-stats"><span>Best <strong>${streak.best || 0}</strong></span><span>Goal <strong>${streak.goal || 100}</strong></span></div>
       </div>
       <div class="engage-card">
@@ -504,12 +504,19 @@ async function submitFeedback(event) {
       body: JSON.stringify({ message, category }),
     });
     form.reset();
+    updateFeedbackCharacterCount();
     showToast('Thanks. Your feedback reached the INKurgic team.', 'success');
   } catch (error) {
     showToast(error.message || 'Unable to send feedback.', 'error');
   } finally {
     if (button) button.disabled = false;
   }
+}
+
+function updateFeedbackCharacterCount() {
+  const input = document.getElementById('feedbackMessage');
+  const counter = document.getElementById('feedbackCharCount');
+  if (input && counter) counter.textContent = `${input.value.length} / ${input.maxLength || 2000}`;
 }
 
 function showSupportSurvey(containerId) {
@@ -1124,22 +1131,33 @@ async function handlePaymentReturn() {
 }
 
 const guideSteps = [
-  ['Welcome to INKurgic', 'Luma waves hello. Explore Home for fresh work, then open Poems when a line starts asking to be written.', 'wave'],
-  ['Make something yours', 'Choose a free avatar or upload one from your device. Attach an image to a poem, save a draft, and publish when it feels ready.', 'point'],
-  ['Find your people', 'Read, react, comment, and follow writers. The writers you follow rise to the top of your feed.', 'look'],
-  ['Build a rhythm', 'Streak Forge tracks real check-ins. Your Creative Focus numbers come from your writing, streak, followers, and practice.', 'celebrate'],
-  ['Unlock your edge', 'Premium adds unlimited image uploads, a Luma avatar, deeper focus analytics, and priority support. Admins receive it free.', 'spark'],
+  { topic: 'Home Sanctuary', title: 'Start at Home', text: 'Find fresh writing, daily prompts, and your personal creative focus from the Home page.', visual: 'home', section: 'home' },
+  { topic: 'Poems', title: 'Read and discover', text: 'Open Poems to browse community work, leave thoughtful reactions, and follow writers whose voices stay with you.', visual: 'poems', section: 'poems' },
+  { topic: 'Create and Write', title: 'Make something yours', text: 'Use Poem Studio to save a draft, set a writing goal, or publish a finished piece.', visual: 'create', section: 'poems' },
+  { topic: 'Engage', title: 'Build a rhythm', text: 'Engage tracks progress from real writing activity and keeps one check-in per day, automatically.', visual: 'engage', section: 'engage' },
+  { topic: 'Profile', title: 'Shape your writer identity', text: 'Manage your name, bio, avatar, drafts, saved works, and audience from Profile.', visual: 'profile', section: 'profile' },
+  { topic: 'Support', title: 'Ask Luma', text: 'Open Luma Support for a private conversation, or send feedback directly to the INKurgic team.', visual: 'support', section: 'home' },
+  { topic: 'Premium', title: 'Unlock your edge', text: 'Writer Premium adds deeper tools, unlimited uploads, and priority support for your practice.', visual: 'premium', section: 'home' },
 ];
 
 function renderGuide() {
-  const [title, text, gesture] = guideSteps[state.guideStep];
-  document.getElementById('guideTitle').textContent = title;
-  document.getElementById('guideText').textContent = text;
-  document.getElementById('guideStepLabel').textContent = `${state.guideStep + 1} / ${guideSteps.length}`;
-  const avatar = document.getElementById('guideAvatar');
-  if (avatar) avatar.className = `guide-avatar gesture-${gesture}`;
-  document.getElementById('guideBackBtn').disabled = state.guideStep === 0;
-  document.getElementById('guideNextBtn').textContent = state.guideStep === guideSteps.length - 1 ? 'Done' : 'Next';
+  const step = guideSteps[state.guideStep];
+  const visual = document.getElementById('tourVisual');
+  const indicator = document.getElementById('tourStepIndicator');
+  const topic = document.getElementById('tourTopic');
+  const title = document.getElementById('tourTitle');
+  const description = document.getElementById('tourDescription');
+  const dots = document.getElementById('tourDots');
+  if (!step || !visual || !indicator || !topic || !title || !description || !dots) return;
+  visual.dataset.tourView = step.visual;
+  visual.innerHTML = `<span class="tour-visual-label">${escapeHtml(step.topic)}</span><span class="tour-visual-marker" aria-hidden="true"></span>`;
+  indicator.textContent = `Step ${state.guideStep + 1} of ${guideSteps.length}`;
+  topic.textContent = step.topic;
+  title.textContent = step.title;
+  description.textContent = step.text;
+  dots.innerHTML = guideSteps.map((item, index) => `<span class="tour-dot${index === state.guideStep ? ' active' : ''}" aria-label="Step ${index + 1}"></span>`).join('');
+  document.getElementById('tourPrevBtn').disabled = state.guideStep === 0;
+  document.getElementById('tourNextBtn').textContent = state.guideStep === guideSteps.length - 1 ? 'Done' : 'Next step';
 }
 
 async function loadNotifications() {
@@ -1205,15 +1223,27 @@ function bindEvents() {
   document.getElementById('adminBtn')?.addEventListener('click', () => window.open('./admin/index.html', '_self'));
   document.getElementById('startWritingBtn')?.addEventListener('click', () => navigate('poems'));
   document.getElementById('subscribeBtn')?.addEventListener('click', subscribeToPlan);
-  document.getElementById('guideFab')?.addEventListener('click', () => { state.guideStep = 0; renderGuide(); openModal('guideModal'); });
-  document.getElementById('guideNextBtn')?.addEventListener('click', () => {
-    if (state.guideStep === guideSteps.length - 1) return closeModal('guideModal');
+  document.getElementById('guideFab')?.addEventListener('click', () => { state.guideStep = 0; renderGuide(); openModal('howToUseModal'); });
+  document.getElementById('tourNextBtn')?.addEventListener('click', () => {
+    if (state.guideStep === guideSteps.length - 1) return closeModal('howToUseModal');
     state.guideStep += 1;
     renderGuide();
   });
-  document.getElementById('guideBackBtn')?.addEventListener('click', () => {
+  document.getElementById('tourPrevBtn')?.addEventListener('click', () => {
     state.guideStep = Math.max(0, state.guideStep - 1);
     renderGuide();
+  });
+  document.getElementById('tourCloseBtn')?.addEventListener('click', () => closeModal('howToUseModal'));
+  document.getElementById('tourJumpBtn')?.addEventListener('click', () => navigate(guideSteps[state.guideStep].section));
+  document.getElementById('footerHowToUseBtn')?.addEventListener('click', () => {
+    state.guideStep = 0;
+    renderGuide();
+    openModal('howToUseModal');
+  });
+  document.getElementById('footerSupportBtn')?.addEventListener('click', openSupportChatModal);
+  document.getElementById('footerFeedbackBtn')?.addEventListener('click', () => {
+    navigate('home');
+    document.getElementById('feedbackSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
   document.getElementById('writerBoostBtn')?.addEventListener('click', () => {
     navigate('poems');
@@ -1271,6 +1301,7 @@ function bindEvents() {
   document.getElementById('supportChatForm')?.addEventListener('submit', submitSupportChat);
   document.getElementById('supportChatModalForm')?.addEventListener('submit', submitSupportChat);
   document.getElementById('feedbackForm')?.addEventListener('submit', submitFeedback);
+  document.getElementById('feedbackMessage')?.addEventListener('input', updateFeedbackCharacterCount);
   document.getElementById('supportChatFab')?.addEventListener('click', openSupportChatModal);
   document.querySelectorAll('[data-close-modal="supportChatModal"]').forEach((button) => {
     button.addEventListener('click', closeSupportChatModal);
@@ -1283,7 +1314,7 @@ function bindEvents() {
       closeModal('regModal');
       closeModal('logModal');
       closeModal('emailModal');
-      closeModal('guideModal');
+      closeModal('howToUseModal');
       closeModal('resetModal');
     });
   });
@@ -1296,9 +1327,10 @@ function bindEvents() {
     toggle.setAttribute('aria-expanded', nav.classList.contains('show') ? 'true' : 'false');
   });
 
-  document.querySelectorAll('.nav-links a').forEach((link) => {
+  document.querySelectorAll('[data-navigate]').forEach((link) => {
     link.addEventListener('click', (event) => {
-      const target = link.getAttribute('onclick')?.match(/navigate\('([^']+)'\)/)?.[1] || 'home';
+      event.preventDefault();
+      const target = link.dataset.navigate || 'home';
       navigate(target);
       if (window.innerWidth <= 600) {
         document.querySelector('.nav-links').classList.remove('show');
@@ -1314,23 +1346,10 @@ function bindEvents() {
     const followButton = event.target.closest('[data-follow]');
     const deleteButton = event.target.closest('[data-delete]');
     const loginButton = event.target.closest('[data-open-login]');
-    const streakButton = event.target.closest('[data-streak-check]');
     const goalButton = event.target.closest('[data-streak-goal]');
 
     if (loginButton) {
       openModal('logModal');
-      return;
-    }
-
-    if (streakButton) {
-      try {
-        const data = await requestJson(`${API_BASE}/streak/check-in`, { method: 'POST', headers: attachAuthHeaders() });
-        state.streak = data.streak;
-        await loadStreak();
-        showToast(data.alreadyCheckedIn ? 'You already checked in today.' : 'Today is in the forge.', 'success');
-      } catch (error) {
-        showToast(error.message || 'Unable to check in.', 'error');
-      }
       return;
     }
 
