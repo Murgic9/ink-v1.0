@@ -9,6 +9,32 @@
     <script id="paystackScript" src="https://js.paystack.co/v1/inline.js" defer></script>
   </head>
   <body>
+    <div id="publicExperience" class="public-experience" aria-label="Welcome to INKurgic">
+      <div id="landingSplash" class="landing-splash" aria-hidden="true">
+        <div class="splash-ink-orbit"></div>
+        <div class="splash-logo">INK<span>urgic</span></div>
+        <p>Words in motion.</p>
+      </div>
+      <section class="landing-page">
+        <div class="landing-copy">
+          <p class="landing-eyebrow">A sanctuary for unfinished thoughts</p>
+          <h1>Write what only you can hear.</h1>
+          <p class="landing-lede">INKurgic gives poets and thoughtful writers a calm place to turn sparks into finished work, build a daily rhythm, and find readers who stay for the words.</p>
+          <div class="landing-actions">
+            <button class="btn primary" type="button" data-open-register>Start writing</button>
+            <button class="btn landing-login" type="button" data-open-login>Log in</button>
+            <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to night mode" aria-pressed="false"><span class="theme-toggle-icon">☾</span><span data-theme-label>Night</span></button>
+          </div>
+          <div class="landing-signals"><span>Daily prompts</span><span>Writer streaks</span><span>Real community</span></div>
+        </div>
+        <div class="landing-preview" aria-hidden="true">
+          <div class="ink-stroke ink-stroke-one"></div>
+          <div class="ink-stroke ink-stroke-two"></div>
+          <div class="preview-note"><span class="preview-dot"></span><span>your next line starts here</span></div>
+          <div class="preview-page"><span class="preview-kicker">THE WRITER'S DESK</span><strong>Begin anywhere.</strong><span class="preview-line"></span><span class="preview-line short"></span></div>
+        </div>
+      </section>
+    </div>
     <nav class="navbar">
       <div class="brand">
         <img src="./Img/Logo.jpg" alt="INKurgic Logo" class="brand-img" />
@@ -26,6 +52,7 @@
       </ul>
 
       <div class="nav-actions">
+        <button class="theme-toggle nav-theme-toggle" type="button" data-theme-toggle aria-label="Switch to night mode" aria-pressed="false"><span class="theme-toggle-icon">☾</span><span data-theme-label>Night</span></button>
         <div id="authArea">
           <button class="nav-btn" id="registerBtn">Register</button>
           <button class="nav-btn filled" id="loginBtn">Login</button>
@@ -270,6 +297,12 @@
                 <span>Reading list</span>
                 <strong id="writerSavedValue">0</strong>
                 <small>saved works</small>
+              </div>
+              <div class="overview-card streak-overview-card">
+                <span>Writing streak</span>
+                <strong id="writerStreakValue">0 days</strong>
+                <small id="writerStreakNote">Start your first day</small>
+                <div class="streak-progress-track"><span id="writerStreakBar" style="width: 0%"></span></div>
               </div>
             </div>
           </div>

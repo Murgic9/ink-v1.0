@@ -1,6 +1,7 @@
 const API_BASE = '/api';
 const tokenKey = 'ink_token';
 const userKey = 'ink_user';
+const themeKey = 'ink_theme';
 const paystackReady = new Promise((resolve, reject) => {
   if (window.PaystackPop) {
     resolve(window.PaystackPop);
@@ -46,6 +47,26 @@ function readStorage(key, fallback = null) {
 
 function writeStorage(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function applyTheme(theme = 'light') {
+  const nextTheme = theme === 'dark' ? 'dark' : 'light';
+  document.body.dataset.theme = nextTheme;
+  document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+    const isDark = nextTheme === 'dark';
+    button.setAttribute('aria-pressed', String(isDark));
+    button.setAttribute('aria-label', isDark ? 'Switch to day mode' : 'Switch to night mode');
+    const icon = button.querySelector('.theme-toggle-icon');
+    const label = button.querySelector('[data-theme-label]');
+    if (icon) icon.textContent = isDark ? '☀' : '☾';
+    if (label) label.textContent = isDark ? 'Day' : 'Night';
+  });
+}
+
+function toggleTheme() {
+  const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(themeKey, nextTheme);
+  applyTheme(nextTheme);
 }
 
 function showToast(message, type = 'info') {
@@ -95,6 +116,19 @@ function setCurrentUser(user) {
     localStorage.removeItem(userKey);
   }
   renderAuthState();
+  updateAppVisibility();
+}
+
+function updateAppVisibility() {
+  const authenticated = Boolean(getCurrentUser());
+  document.body.classList.toggle('authenticated', authenticated);
+  const landingSplash = document.getElementById('landingSplash');
+  if (landingSplash && !landingSplash.dataset.dismissed) {
+    window.setTimeout(() => {
+      landingSplash.classList.add('dismissed');
+      landingSplash.dataset.dismissed = 'true';
+    }, 2200);
+  }
 }
 
 function getCurrentUser() {
@@ -291,6 +325,7 @@ async function loadStreak() {
   if (!container) return;
   const user = getCurrentUser();
   if (!user) {
+    renderStreakOverview(null);
     container.innerHTML = '<div class="engage-card"><h3>Build a writing rhythm</h3><p>Sign in to track your daily practice and forge a streak that belongs to you.</p><button class="btn primary" type="button" data-open-login>Sign in to begin</button></div>';
     return;
   }
@@ -299,6 +334,7 @@ async function loadStreak() {
     const data = await requestJson(`${API_BASE}/streak`, { headers: attachAuthHeaders() });
     state.streak = data.streak;
     const streak = state.streak;
+    renderStreakOverview(streak);
     container.innerHTML = `
       <div class="engage-card">
         <span class="fire-icon">✦</span>
@@ -317,8 +353,20 @@ async function loadStreak() {
         <button class="btn" type="button" data-streak-goal>Save goal</button>
       </div>`;
   } catch (error) {
+    renderStreakOverview(null);
     container.innerHTML = '<div class="engage-card"><p>Streak Forge is warming up. Try again in a moment.</p></div>';
   }
+}
+
+function renderStreakOverview(streak) {
+  const value = document.getElementById('writerStreakValue');
+  const note = document.getElementById('writerStreakNote');
+  const bar = document.getElementById('writerStreakBar');
+  const current = Number(streak?.current || 0);
+  const goal = Number(streak?.goal || 100);
+  if (value) value.textContent = `${current} day${current === 1 ? '' : 's'}`;
+  if (note) note.textContent = current ? `${Math.min(100, Math.round((current / goal) * 100))}% of your ${goal}-day goal` : 'Start your first day';
+  if (bar) bar.style.width = `${Math.min(100, Math.round((current / goal) * 100))}%`;
 }
 
 async function loadUsers() {
@@ -355,6 +403,7 @@ function renderProfileSummary() {
     if (writerStatusNote) writerStatusNote.textContent = 'Sign in to start writing';
     if (writerMomentumValue) writerMomentumValue.textContent = '0';
     if (writerSavedValue) writerSavedValue.textContent = '0';
+      renderStreakOverview(null);
     const planCard = document.getElementById('planCard');
     if (planCard) planCard.hidden = false;
     return;
@@ -385,6 +434,7 @@ function renderProfileSummary() {
   if (savedCount) savedCount.textContent = String(savedTotal);
   if (writerMomentumValue) writerMomentumValue.textContent = String(momentumCount);
   if (writerSavedValue) writerSavedValue.textContent = String(savedTotal);
+  renderStreakOverview(state.streak);
   if (writerStatusValue) writerStatusValue.textContent = user.isPaid ? 'Pro' : 'Free';
   if (writerStatusNote) writerStatusNote.textContent = user.isPaid ? 'Premium tools unlocked' : 'Unlock premium tools';
   const planCard = document.getElementById('planCard');
@@ -985,7 +1035,11 @@ async function handleRegister(event) {
     document.getElementById('regForm').reset();
     showSuccessBadge();
     showToast('Welcome to INKurgic.', 'success');
+    navigate('home');
     loadPosts();
+    loadStreak();
+    renderSupportChat();
+    loadNotifications();
   } catch (error) {
     showToast(error.message || 'Registration failed.', 'error');
   }
@@ -1009,6 +1063,7 @@ async function handleLogin(event) {
     document.getElementById('logForm').reset();
     showSuccessBadge();
     showToast('Signed in successfully.', 'success');
+    navigate('home');
     loadPosts();
     loadStreak();
   } catch (error) {
@@ -1092,6 +1147,7 @@ function closeModal(modalId) {
 async function logout() {
   setToken(null);
   setCurrentUser(null);
+  navigate('home');
   showToast('You have been signed out.', 'info');
 }
 
@@ -1136,6 +1192,7 @@ const guideSteps = [
   { topic: 'Create and Write', title: 'Make something yours', text: 'Use Poem Studio to save a draft, set a writing goal, or publish a finished piece.', visual: 'create', section: 'poems' },
   { topic: 'Engage', title: 'Build a rhythm', text: 'Engage tracks progress from real writing activity and keeps one check-in per day, automatically.', visual: 'engage', section: 'engage' },
   { topic: 'Profile', title: 'Shape your writer identity', text: 'Manage your name, bio, avatar, drafts, saved works, and audience from Profile.', visual: 'profile', section: 'profile' },
+  { topic: 'Your view', title: 'Choose your atmosphere', text: 'Use the day and night toggle in the landing page or main navigation to make the writing space feel like yours.', visual: 'home', section: 'home' },
   { topic: 'Support', title: 'Ask Luma', text: 'Open Luma Support for a private conversation, or send feedback directly to the INKurgic team.', visual: 'support', section: 'home' },
   { topic: 'Premium', title: 'Unlock your edge', text: 'Writer Premium adds deeper tools, unlimited uploads, and priority support for your practice.', visual: 'premium', section: 'home' },
 ];
@@ -1217,6 +1274,21 @@ async function handlePostAction(target, action) {
 }
 
 function bindEvents() {
+  document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+    button.addEventListener('click', toggleTheme);
+  });
+  document.querySelectorAll('[data-open-register]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.getElementById('publicExperience')?.classList.add('leaving');
+      openModal('regModal');
+    });
+  });
+  document.querySelectorAll('[data-open-login]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.getElementById('publicExperience')?.classList.add('leaving');
+      openModal('logModal');
+    });
+  });
   document.getElementById('registerBtn')?.addEventListener('click', () => openModal('regModal'));
   document.getElementById('loginBtn')?.addEventListener('click', () => openModal('logModal'));
   document.getElementById('logoutBtn')?.addEventListener('click', logout);
@@ -1416,7 +1488,9 @@ function bindEvents() {
 }
 
 async function initApp() {
+  applyTheme(localStorage.getItem(themeKey) || 'light');
   getCurrentUser();
+  updateAppVisibility();
   bindEvents();
   renderAuthState();
   renderPromptCard();

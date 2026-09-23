@@ -221,11 +221,12 @@ function isAllowedAvatar(value) {
 }
 
 function getPaystackAmount() {
-  return 299;
+  const amount = Number(process.env.PAYSTACK_AMOUNT || 299);
+  return Number.isInteger(amount) && amount > 0 ? amount : 299;
 }
 
 function getPaystackCurrency() {
-  return 'USD';
+  return String(process.env.PAYSTACK_CURRENCY || 'NGN').trim().toUpperCase();
 }
 
 function isPaystackTestMode() {
@@ -233,8 +234,12 @@ function isPaystackTestMode() {
 }
 
 function getPaystackConfigurationError() {
+  const publicKey = String(process.env.PAYSTACK_PUBLIC_KEY || '');
   const secretKey = String(process.env.PAYSTACK_SECRET_KEY || '');
   const expectsTestKey = isPaystackTestMode();
+  if (!publicKey) return 'PAYSTACK_PUBLIC_KEY is missing.';
+  if (expectsTestKey && !publicKey.startsWith('pk_test_')) return 'PAYSTACK_TEST_MODE=true requires a pk_test_ public key.';
+  if (!expectsTestKey && !publicKey.startsWith('pk_live_')) return 'PAYSTACK_TEST_MODE=false requires a pk_live_ public key.';
   if (!secretKey) return 'PAYSTACK_SECRET_KEY is missing.';
   if (expectsTestKey && !secretKey.startsWith('sk_test_')) return 'PAYSTACK_TEST_MODE=true requires a sk_test_ secret key.';
   if (!expectsTestKey && !secretKey.startsWith('sk_live_')) return 'PAYSTACK_TEST_MODE=false requires a sk_live_ secret key.';

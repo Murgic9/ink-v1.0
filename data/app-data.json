@@ -14,14 +14,114 @@
       "following": [],
       "saved": [],
       "createdAt": "2026-09-03T09:58:41.623Z"
+    },
+    {
+      "id": "user-1790122751706-06383d",
+      "username": "browserwriter2751386",
+      "displayName": "Browser Test Writer",
+      "email": "browser-1790122751386@example.com",
+      "passwordHash": "$2a$10$HMUytlF2cR1LViNueueeleNQXHbU.KZoWvx/u0S8XFNEIuZ3e7fuS",
+      "bio": "New writer on INKurgic.",
+      "avatar": "",
+      "isAdmin": false,
+      "isPaid": false,
+      "followers": [],
+      "following": [],
+      "saved": [],
+      "createdAt": "2026-09-23T00:19:11.820Z"
+    },
+    {
+      "id": "user-1790122795647-2d9e5f",
+      "username": "browserflow2795582",
+      "displayName": "Browser Flow Writer",
+      "email": "flow-1790122795582@example.com",
+      "passwordHash": "$2a$10$NY7R.a.5EfIWXD9eHYWBvetNVraHcKZqeTufpKVdI1t830yQOFmC2",
+      "bio": "New writer on INKurgic.",
+      "avatar": "",
+      "isAdmin": false,
+      "isPaid": false,
+      "followers": [],
+      "following": [],
+      "saved": [],
+      "createdAt": "2026-09-23T00:19:55.730Z"
+    },
+    {
+      "id": "user-1790122835838-14bdb2",
+      "username": "freshflow2835694",
+      "displayName": "Fresh Flow Writer",
+      "email": "fresh-1790122835694@example.com",
+      "passwordHash": "$2a$10$MJPd7aCAY8E4fo2mUo/Ir.R6Wpv5MxxOo/E11s2lqXdOXdxyqe8Qi",
+      "bio": "New writer on INKurgic.",
+      "avatar": "",
+      "isAdmin": false,
+      "isPaid": false,
+      "followers": [],
+      "following": [],
+      "saved": [],
+      "createdAt": "2026-09-23T00:20:35.925Z",
+      "streak": {
+        "goal": 100,
+        "current": 1,
+        "best": 1,
+        "checkIns": [
+          "2026-09-23"
+        ],
+        "activityLog": [
+          {
+            "type": "published_poem",
+            "date": "2026-09-23",
+            "timestamp": "2026-09-23T00:20:44.857Z"
+          }
+        ]
+      }
     }
   ],
-  "writings": [],
+  "writings": [
+    {
+      "id": "writing-1790122844856-c0e407",
+      "authorId": "user-1790122835838-14bdb2",
+      "title": "Browser Workflow Poem",
+      "content": "A line of light moves through the room and finds its reader.",
+      "category": "poetry",
+      "tags": [],
+      "image": "",
+      "status": "published",
+      "likes": [],
+      "comments": [],
+      "createdAt": "2026-09-23T00:20:44.856Z",
+      "updatedAt": "2026-09-23T00:20:44.856Z"
+    }
+  ],
   "notifications": [],
   "subscriptions": [],
   "reports": [],
-  "feedback": [],
-  "supportMessages": [],
+  "feedback": [
+    {
+      "id": "feedback-1790122846255-a34419",
+      "userId": "user-1790122835838-14bdb2",
+      "email": "fresh-1790122835694@example.com",
+      "displayName": "Fresh Flow Writer",
+      "message": "Browser feedback test message",
+      "category": "General",
+      "status": "unread",
+      "createdAt": "2026-09-23T00:20:46.255Z"
+    }
+  ],
+  "supportMessages": [
+    {
+      "id": "support-1790122845601-cf0788",
+      "userId": "user-1790122835838-14bdb2",
+      "email": "fresh-1790122835694@example.com",
+      "displayName": "Fresh Flow Writer",
+      "senderType": "user",
+      "senderName": "Fresh Flow Writer",
+      "from": "You",
+      "priority": false,
+      "text": "Browser support test message",
+      "status": "unread",
+      "createdAt": "2026-09-23T00:20:45.601Z"
+    }
+  ],
   "supportSurveys": [],
   "prompts": [
     {

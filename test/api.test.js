@@ -198,8 +198,10 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   assert.equal(promoted.user.isPaid, true);
 
   const config = await request('/config');
-  assert.equal(config.paystackCurrency, 'USD');
-  assert.equal(config.paystackAmount, 299);
+  const expectedPaystackCurrency = String(process.env.PAYSTACK_CURRENCY || 'NGN').toUpperCase();
+  const expectedPaystackAmount = Number(process.env.PAYSTACK_AMOUNT || 299);
+  assert.equal(config.paystackCurrency, expectedPaystackCurrency);
+  assert.equal(config.paystackAmount, expectedPaystackAmount);
 
   const paymentUsername = `premium${Date.now()}`;
   const paymentEmail = `${paymentUsername}@example.com`;
@@ -220,8 +222,8 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
       status: true,
       data: {
         status: 'success',
-        amount: 299,
-        currency: 'USD',
+        amount: expectedPaystackAmount,
+        currency: expectedPaystackCurrency,
         customer: { email: paymentEmail },
       },
     }), { status: 200 });
@@ -233,8 +235,8 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   });
   assert.equal(paymentInit.authorizationUrl, 'https://checkout.paystack.com/test');
   const initPayload = JSON.parse(paystackCalls[0].options.body);
-  assert.equal(initPayload.amount, 299);
-  assert.equal(initPayload.currency, 'USD');
+  assert.equal(initPayload.amount, expectedPaystackAmount);
+  assert.equal(initPayload.currency, expectedPaystackCurrency);
   const paymentComplete = await request('/subscribe', {
     method: 'POST',
     headers: paymentAuth,
