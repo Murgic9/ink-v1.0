@@ -29,6 +29,8 @@ const state = {
   posts: [],
   myPosts: [],
   users: [],
+  activeUsers: [],
+  activeCount: 0,
   notifications: [],
   streak: null,
   selectedAvatar: '',
@@ -151,7 +153,9 @@ async function requestJson(url, options = {}) {
       setToken(null);
       setCurrentUser(null);
     }
-    throw new Error(data.message || 'Request failed.');
+    const error = new Error(data.message || 'Request failed.');
+    error.status = response.status;
+    throw error;
   }
 
   return data;
@@ -274,8 +278,8 @@ async function loadPaystackConfig() {
   try {
     const data = await requestJson(`${API_BASE}/config`);
     window.PAYSTACK_PUBLIC_KEY = data.paystackPublicKey || '';
-    window.PAYSTACK_CURRENCY = data.paystackCurrency || 'USD';
-    window.PAYSTACK_AMOUNT = Number(data.paystackAmount || 299);
+    window.PAYSTACK_CURRENCY = data.paystackCurrency || 'NGN';
+    window.PAYSTACK_AMOUNT = Number(data.paystackAmount || 299900);
     const amountLabel = document.getElementById('planPrice');
     if (amountLabel) {
       const amount = window.PAYSTACK_AMOUNT / 100;
@@ -318,6 +322,65 @@ async function loadMyPosts() {
   } catch (error) {
     state.myPosts = [];
   }
+}
+
+async function loadActiveUsers() {
+  try {
+    const data = await requestJson(`${API_BASE}/presence`);
+    state.activeUsers = data.activeUsers || [];
+    state.activeCount = Number(data.count) || state.activeUsers.length;
+    renderActiveUsers();
+  } catch (error) {
+    state.activeUsers = [];
+    state.activeCount = 0;
+    renderActiveUsers('Active writers are unavailable right now.');
+  }
+}
+
+async function sendPresenceHeartbeat() {
+  if (!getCurrentUser()) return;
+  try {
+    await requestJson(`${API_BASE}/presence`, {
+      method: 'POST',
+      headers: attachAuthHeaders(),
+    });
+    await loadActiveUsers();
+  } catch {}
+}
+
+function startPresenceTracking() {
+  window.setInterval(() => {
+    if (document.visibilityState === 'visible' && getCurrentUser()) sendPresenceHeartbeat();
+    else loadActiveUsers();
+  }, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (getCurrentUser()) sendPresenceHeartbeat();
+    else loadActiveUsers();
+  });
+}
+
+function renderActiveUsers(message = '') {
+  const list = document.getElementById('activeWritersList');
+  const count = document.getElementById('activeWriterCount');
+  if (!list || !count) return;
+
+  count.textContent = String(state.activeCount);
+  if (!state.activeUsers.length) {
+    list.innerHTML = `<p class="empty-copy">${escapeHtml(message || 'No writers are active at the moment. Check back soon.')}</p>`;
+    return;
+  }
+
+  list.innerHTML = state.activeUsers.slice(0, 8).map((user) => `
+    <article class="active-writer">
+      <img src="${escapeHtml(user.avatar || './Img/Logo.jpg')}" alt="" />
+      <span class="presence-dot" aria-label="Active"></span>
+      <div class="active-writer-name">
+        <strong>${escapeHtml(user.displayName || user.username)}</strong>
+        <span>@${escapeHtml(user.username)}</span>
+      </div>
+    </article>
+  `).join('');
 }
 
 async function loadStreak() {
@@ -725,12 +788,17 @@ function renderPosts() {
 
   if (poemsGrid) {
     poemsGrid.innerHTML = '';
-    if (!state.posts.length) {
-      poemsGrid.innerHTML = '<div class="post-card"><p>No poetry workshop pieces yet.</p></div>';
-      return;
+    const currentUser = getCurrentUser();
+    const writerPoems = currentUser
+      ? (state.myPosts || []).filter((post) => post.authorId === currentUser.id && post.status !== 'draft')
+      : [];
+    if (!currentUser) {
+      poemsGrid.innerHTML = '<div class="post-card"><p>Sign in to see your private poem workspace.</p></div>';
+    } else if (!writerPoems.length) {
+      poemsGrid.innerHTML = '<div class="post-card"><p>Your published poems will appear here. Drafts stay in your Writer Dashboard.</p></div>';
     }
 
-    state.posts.slice(0, 8).forEach((post) => {
+    writerPoems.slice(0, 8).forEach((post) => {
       const comments = Array.isArray(post.comments) ? post.comments : [];
       const item = document.createElement('article');
       item.className = 'post-card';
@@ -790,6 +858,7 @@ async function deleteWriting(writingId) {
       headers: attachAuthHeaders(),
     });
     state.posts = state.posts.filter((item) => item.id !== writingId);
+    state.myPosts = state.myPosts.filter((item) => item.id !== writingId);
     renderPosts();
     showToast('Writing deleted.', 'success');
   } catch (error) {
@@ -1031,6 +1100,7 @@ async function handleRegister(event) {
     });
     setToken(data.token);
     setCurrentUser(data.user);
+    sendPresenceHeartbeat();
     closeModal('regModal');
     document.getElementById('regForm').reset();
     showSuccessBadge();
@@ -1059,6 +1129,7 @@ async function handleLogin(event) {
     });
     setToken(data.token);
     setCurrentUser(data.user);
+    sendPresenceHeartbeat();
     closeModal('logModal');
     document.getElementById('logForm').reset();
     showSuccessBadge();
@@ -1145,8 +1216,16 @@ function closeModal(modalId) {
 }
 
 async function logout() {
+  try {
+    await requestJson(`${API_BASE}/presence`, {
+      method: 'POST',
+      headers: attachAuthHeaders(),
+      body: JSON.stringify({ active: false }),
+    });
+  } catch {}
   setToken(null);
   setCurrentUser(null);
+  await loadActiveUsers();
   navigate('home');
   showToast('You have been signed out.', 'info');
 }
@@ -1156,17 +1235,39 @@ async function subscribeToPlan() {
   if (!user) return openModal('logModal');
   if (user.isAdmin) return showToast('Admin premium access is already active.', 'info');
   const button = document.getElementById('subscribeBtn');
-  if (button) button.disabled = true;
+  const originalLabel = button?.textContent || 'Subscribe';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Connecting to Paystack...';
+  }
   try {
-    const data = await requestJson(`${API_BASE}/payments/initialize`, {
-      method: 'POST',
-      headers: attachAuthHeaders(),
-      body: JSON.stringify({ planId: 'go-pro' }),
-    });
+    let data;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        data = await requestJson(`${API_BASE}/payments/initialize`, {
+          method: 'POST',
+          headers: attachAuthHeaders(),
+          body: JSON.stringify({ planId: 'go-pro' }),
+        });
+        break;
+      } catch (error) {
+        const isTransient = error instanceof TypeError || [502, 503, 504].includes(error.status);
+        if (!isTransient || attempt === 4) throw error;
+        if (button) button.textContent = 'Waking checkout...';
+        await new Promise((resolve) => setTimeout(resolve, 4000 * (attempt + 1)));
+      }
+    }
+    if (!data?.authorizationUrl) throw new Error('Paystack did not return a checkout link. Please try again.');
     window.location.assign(data.authorizationUrl);
   } catch (error) {
-    if (button) button.disabled = false;
-    showToast(error.message || 'Paystack checkout could not be loaded.', 'error');
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+    const message = error instanceof TypeError
+      ? 'Could not reach the payment server. Check your connection and try again.'
+      : error.message || 'Paystack checkout could not be loaded.';
+    showToast(message, 'error');
   }
 }
 
@@ -1407,6 +1508,7 @@ function bindEvents() {
       if (window.innerWidth <= 600) {
         document.querySelector('.nav-links').classList.remove('show');
         document.querySelector('.nav-toggle').classList.remove('open');
+        document.querySelector('.nav-toggle').setAttribute('aria-expanded', 'false');
       }
     });
   });
@@ -1499,6 +1601,9 @@ async function initApp() {
   await loadSession();
   await loadPrompts();
   await loadUsers();
+  await loadActiveUsers();
+  if (getCurrentUser()) await sendPresenceHeartbeat();
+  startPresenceTracking();
   renderSupportChat();
   await loadPosts();
   await loadStreak();

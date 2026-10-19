@@ -128,6 +128,41 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   const privateFeed = await request('/writings/mine', { headers: auth });
   assert.equal(publicFeed.writings.some((writing) => writing.id === draft.writing.id), false);
   assert.equal(privateFeed.writings.some((writing) => writing.id === draft.writing.id), true);
+  const otherUsername = `reader${Date.now()}`;
+  const otherUser = await request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username: otherUsername, displayName: 'Other Writer', email: `${otherUsername}@example.com`, password: 'password123' }),
+  });
+  const otherAuth = { Authorization: `Bearer ${otherUser.token}` };
+  const unauthorizedPresence = await fetch(`${baseUrl}/presence`, { method: 'POST' });
+  assert.equal(unauthorizedPresence.status, 401);
+  await request('/presence', { method: 'POST', headers: auth });
+  const presence = await request('/presence');
+  assert.ok(presence.activeUsers.some((user) => user.id === registered.user.id));
+  assert.equal(presence.activeUsers.some((user) => Object.hasOwn(user, 'email')), false);
+  const publicUsers = await request('/users');
+  const publicWriter = publicUsers.users.find((user) => user.id === registered.user.id);
+  assert.equal(Object.hasOwn(publicWriter, 'lastActiveAt'), false);
+  const presenceStore = readStore();
+  const activeUser = presenceStore.users.find((user) => user.id === registered.user.id);
+  activeUser.lastActiveAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  writeStore(presenceStore);
+  const expiredPresence = await request('/presence');
+  assert.equal(expiredPresence.activeUsers.some((user) => user.id === registered.user.id), false);
+  await request('/presence', { method: 'POST', headers: auth });
+  const refreshedPresence = await request('/presence');
+  assert.ok(refreshedPresence.activeUsers.some((user) => user.id === registered.user.id));
+  await request('/presence', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }) });
+  const signedOutPresence = await request('/presence');
+  assert.equal(signedOutPresence.activeUsers.some((user) => user.id === registered.user.id), false);
+  const otherWriterFeed = await request('/writings/mine', { headers: otherAuth });
+  assert.equal(otherWriterFeed.writings.some((writing) => writing.authorId === registered.user.id), false);
+  const anonymousDraftRead = await fetch(`${baseUrl}/writings/${draft.writing.id}`);
+  assert.equal(anonymousDraftRead.status, 404);
+  const otherWriterDraftRead = await fetch(`${baseUrl}/writings/${draft.writing.id}`, { headers: otherAuth });
+  assert.equal(otherWriterDraftRead.status, 404);
+  const ownerDraftRead = await request(`/writings/${draft.writing.id}`, { headers: auth });
+  assert.equal(ownerDraftRead.writing.id, draft.writing.id);
 
   const deleteResponse = await fetch(`${baseUrl}/writings/${draft.writing.id}`, {
     method: 'DELETE',
@@ -199,7 +234,7 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
 
   const config = await request('/config');
   const expectedPaystackCurrency = String(process.env.PAYSTACK_CURRENCY || 'NGN').toUpperCase();
-  const expectedPaystackAmount = Number(process.env.PAYSTACK_AMOUNT || 299);
+  const expectedPaystackAmount = Number(process.env.PAYSTACK_AMOUNT || 299900);
   assert.equal(config.paystackCurrency, expectedPaystackCurrency);
   assert.equal(config.paystackAmount, expectedPaystackAmount);
 

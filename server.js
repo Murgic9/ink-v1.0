@@ -187,7 +187,7 @@ function generateToken(user) {
 
 function sanitizeUser(user) {
   if (!user) return null;
-  const { passwordHash, ...safeUser } = user;
+  const { passwordHash, lastActiveAt, ...safeUser } = user;
   return {
     ...safeUser,
     followersCount: Array.isArray(user.followers) ? user.followers.length : 0,
@@ -221,8 +221,8 @@ function isAllowedAvatar(value) {
 }
 
 function getPaystackAmount() {
-  const amount = Number(process.env.PAYSTACK_AMOUNT || 299);
-  return Number.isInteger(amount) && amount > 0 ? amount : 299;
+  const amount = Number(process.env.PAYSTACK_AMOUNT || 299900);
+  return Number.isInteger(amount) && amount > 0 ? amount : 299900;
 }
 
 function getPaystackCurrency() {
@@ -508,6 +508,42 @@ app.get('/api/users', (req, res) => {
   return res.json({ users: filtered });
 });
 
+const ACTIVE_USER_WINDOW_MS = 2 * 60 * 1000;
+
+app.get('/api/presence', (req, res) => {
+  const store = readStore();
+  const activeAfter = Date.now() - ACTIVE_USER_WINDOW_MS;
+  const activeWriters = store.users
+    .filter((user) => Number.isFinite(Date.parse(user.lastActiveAt)) && Date.parse(user.lastActiveAt) >= activeAfter)
+    .sort((a, b) => Date.parse(b.lastActiveAt) - Date.parse(a.lastActiveAt));
+  const users = activeWriters.slice(0, 8).map((user) => ({
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName || user.username,
+    avatar: user.avatar || '',
+  }));
+  return res.json({ activeUsers: users, count: activeWriters.length });
+});
+
+app.post('/api/presence', requireAuth, (req, res) => {
+  const store = readStore();
+  const user = store.users.find((item) => item.id === req.user.id);
+  if (!user) return res.status(404).json({ message: 'User not found.' });
+
+  if (req.body?.active === false) {
+    delete user.lastActiveAt;
+    writeStore(store);
+    return res.json({ active: false });
+  }
+
+  const lastActiveAt = Date.parse(user.lastActiveAt || '');
+  if (!Number.isFinite(lastActiveAt) || Date.now() - lastActiveAt >= 30000) {
+    user.lastActiveAt = new Date().toISOString();
+    writeStore(store);
+  }
+  return res.json({ active: true });
+});
+
 app.get('/api/users/:id', (req, res) => {
   const store = readStore();
   const user = store.users.find((item) => item.id === req.params.id);
@@ -597,6 +633,21 @@ app.get('/api/writings/:id', (req, res) => {
 
   if (!writing) {
     return res.status(404).json({ message: 'Writing not found.' });
+  }
+
+  if (writing.status === 'draft') {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    let requester = null;
+    try {
+      const decoded = token ? jwt.verify(token, process.env.JWT_SECRET || 'ink-dev-secret') : null;
+      requester = decoded ? store.users.find((user) => user.id === decoded.id) : null;
+    } catch (error) {
+      requester = null;
+    }
+    if (!requester || (requester.id !== writing.authorId && !requester.isAdmin)) {
+      return res.status(404).json({ message: 'Writing not found.' });
+    }
   }
 
   return res.json({ writing: serializeWriting(writing, store) });

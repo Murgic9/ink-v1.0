@@ -524,6 +524,91 @@ body.authenticated .public-experience {
   padding: 0 24px 24px;
 }
 
+.active-writers-section {
+  max-width: 1272px;
+  margin: 0 auto;
+  padding: 20px 24px 24px;
+}
+
+.active-writers-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.active-writers-kicker {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.active-writers-heading h2 {
+  font-size: 24px;
+}
+
+.active-writers-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.presence-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: #16854b;
+  box-shadow: 0 0 0 3px rgba(22, 133, 75, .12);
+}
+
+.active-writers-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
+}
+
+.active-writer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+}
+
+.active-writer img {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.active-writer-name {
+  display: grid;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.active-writer-name strong,
+.active-writer-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-writer-name span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .highlight-card {
   background: white;
   border-radius: 22px;
@@ -1945,6 +2030,10 @@ h1, h2, h3, h4, .logo {
   .hero { padding: 42px 20px 30px; }
   .hero h1 { font-size: 42px; }
   .prompt-panel, .home-highlights, .search-bar-wrap { padding-left: 20px; padding-right: 20px; }
+  .active-writers-section { padding: 18px 20px 22px; }
+  .active-writers-heading { align-items: start; }
+  .active-writers-heading h2 { font-size: 21px; }
+  .active-writers-list { grid-template-columns: 1fr; }
   .container { padding: 16px; }
   .form-actions, .support-chat-form { flex-wrap: wrap; }
   .form-actions .btn, .support-chat-form .btn { flex: 1; }
