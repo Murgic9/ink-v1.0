@@ -221,12 +221,14 @@ function isAllowedAvatar(value) {
 }
 
 function getPaystackAmount() {
-  const amount = Number(process.env.PAYSTACK_AMOUNT || 299900);
+  const configuredCurrency = String(process.env.PAYSTACK_CURRENCY || 'NGN').trim().toUpperCase();
+  const amount = Number(configuredCurrency === 'USD' ? 299900 : process.env.PAYSTACK_AMOUNT || 299900);
   return Number.isInteger(amount) && amount > 0 ? amount : 299900;
 }
 
 function getPaystackCurrency() {
-  return String(process.env.PAYSTACK_CURRENCY || 'NGN').trim().toUpperCase();
+  const currency = String(process.env.PAYSTACK_CURRENCY || 'NGN').trim().toUpperCase();
+  return currency === 'USD' ? 'NGN' : currency;
 }
 
 function isPaystackTestMode() {
@@ -234,16 +236,30 @@ function isPaystackTestMode() {
 }
 
 function getPaystackConfigurationError() {
-  const publicKey = String(process.env.PAYSTACK_PUBLIC_KEY || '');
   const secretKey = String(process.env.PAYSTACK_SECRET_KEY || '');
   const expectsTestKey = isPaystackTestMode();
-  if (!publicKey) return 'PAYSTACK_PUBLIC_KEY is missing.';
-  if (expectsTestKey && !publicKey.startsWith('pk_test_')) return 'PAYSTACK_TEST_MODE=true requires a pk_test_ public key.';
-  if (!expectsTestKey && !publicKey.startsWith('pk_live_')) return 'PAYSTACK_TEST_MODE=false requires a pk_live_ public key.';
   if (!secretKey) return 'PAYSTACK_SECRET_KEY is missing.';
   if (expectsTestKey && !secretKey.startsWith('sk_test_')) return 'PAYSTACK_TEST_MODE=true requires a sk_test_ secret key.';
   if (!expectsTestKey && !secretKey.startsWith('sk_live_')) return 'PAYSTACK_TEST_MODE=false requires a sk_live_ secret key.';
   return '';
+}
+
+const PASSWORD_HASH_PREFIX = 'sha256-bcrypt$';
+
+function preparePassword(password) {
+  return crypto.createHash('sha256').update(password, 'utf8').digest('hex');
+}
+
+async function hashPassword(password) {
+  const hash = await bcrypt.hash(preparePassword(password), 10);
+  return `${PASSWORD_HASH_PREFIX}${hash}`;
+}
+
+async function verifyPassword(password, passwordHash = '') {
+  if (passwordHash.startsWith(PASSWORD_HASH_PREFIX)) {
+    return bcrypt.compare(preparePassword(password), passwordHash.slice(PASSWORD_HASH_PREFIX.length));
+  }
+  return bcrypt.compare(password, passwordHash);
 }
 
 function recordUserActivity(user, activityType = 'writing') {
@@ -320,10 +336,6 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ message: 'Enter a valid email address.' });
     }
 
-    if (normalizedPassword.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
-    }
-
     const store = readStore();
     const exists = store.users.some(
       (user) => user.username.toLowerCase() === normalizedUsername.toLowerCase() || user.email.toLowerCase() === normalizedEmail
@@ -338,7 +350,7 @@ app.post('/api/auth/register', async (req, res) => {
       username: normalizedUsername,
       displayName: normalizedDisplayName,
       email: normalizedEmail,
-      passwordHash: await bcrypt.hash(normalizedPassword, 10),
+      passwordHash: await hashPassword(normalizedPassword),
       bio: 'New writer on INKurgic.',
       avatar: '',
       isAdmin: false,
@@ -352,7 +364,7 @@ app.post('/api/auth/register', async (req, res) => {
     store.users.push(newUser);
     writeStore(store);
 
-    await sendEmail({
+    sendEmail({
       to: newUser.email,
       subject: 'Welcome to INKurgic',
       text: `Welcome ${newUser.displayName}! Your INKurgic account is ready. Keep writing, keep returning, and let your voice find its readers.`,
@@ -388,13 +400,13 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password.' });
     }
 
-    const isValid = await bcrypt.compare(String(password), user.passwordHash || '');
+    const isValid = await verifyPassword(String(password), user.passwordHash || '');
     if (!isValid) {
       return res.status(401).json({ message: 'Invalid username or password.' });
     }
 
     const token = generateToken(user);
-    await sendEmail({
+    sendEmail({
       to: user.email,
       subject: 'New INKurgic sign-in',
       text: `Hi ${user.displayName || user.username}, your INKurgic account was just signed in to. If this was not you, reset your password immediately.`,
@@ -427,7 +439,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   writeStore(store);
 
   const resetUrl = `${CLIENT_URL}/?reset=${rawToken}`;
-  await sendEmail({
+  sendEmail({
     to: user.email,
     subject: 'Reset your INKurgic password',
     text: `Use this link to reset your password: ${resetUrl}\n\nThis link expires in 30 minutes. If you did not request this, you can ignore this email.`,
@@ -438,7 +450,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 app.post('/api/auth/reset-password', async (req, res) => {
   const token = typeof req.body?.token === 'string' ? req.body.token : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  if (!token || password.length < 8) return res.status(400).json({ message: 'A valid token and a password of at least 8 characters are required.' });
+  if (!token || !password) return res.status(400).json({ message: 'A valid token and a non-empty password are required.' });
 
   const crypto = require('crypto');
   const hash = crypto.createHash('sha256').update(token).digest('hex');
@@ -446,10 +458,10 @@ app.post('/api/auth/reset-password', async (req, res) => {
   const user = store.users.find((item) => item.passwordReset?.tokenHash === hash && new Date(item.passwordReset.expiresAt) > new Date());
   if (!user) return res.status(400).json({ message: 'This reset link is invalid or expired.' });
 
-  user.passwordHash = await bcrypt.hash(password, 10);
+  user.passwordHash = await hashPassword(password);
   delete user.passwordReset;
   writeStore(store);
-  await sendEmail({ to: user.email, subject: 'Your INKurgic password changed', text: 'Your INKurgic password was changed successfully.' }).catch((error) => console.error('Password confirmation email error:', error.message));
+  sendEmail({ to: user.email, subject: 'Your INKurgic password changed', text: 'Your INKurgic password was changed successfully.' }).catch((error) => console.error('Password confirmation email error:', error.message));
   return res.json({ message: 'Password reset successfully. You can now log in.' });
 });
 
@@ -1162,28 +1174,33 @@ app.post('/api/payments/initialize', requireAuth, async (req, res) => {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const paystackFetch = module.exports.paystackFetch || fetch;
-    const response = await paystackFetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: user.email,
-        amount,
-        currency,
-        reference,
-        callback_url: `${CLIENT_URL}/?payment=return`,
-        metadata: { userId: user.id, planId: 'go-pro' },
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    const result = await response.json().catch(() => ({}));
+    let response;
+    let result;
+    try {
+      response = await paystackFetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          amount,
+          currency,
+          reference,
+          callback_url: `${CLIENT_URL}/?payment=return`,
+          metadata: { userId: user.id, planId: 'go-pro' },
+        }),
+        signal: controller.signal,
+      });
+      result = await response.json().catch(() => ({}));
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok || result.status !== true || !result.data?.authorization_url) {
       console.error('Paystack initialization failed:', result.message || `HTTP ${response.status}`, result);
       const providerMessage = String(result.message || '').toLowerCase();
       const userMessage = providerMessage.includes('currency not supported')
-        ? 'Paystack is not enabled to accept USD on this merchant account. Enable USD for the Paystack account, then try again.'
+        ? 'Paystack is not enabled to accept NGN on this merchant account. Check the NGN settings in Paystack, then try again.'
         : result.message
           ? `Paystack: ${result.message}`
           : 'Paystack could not initialize this payment.';
@@ -1224,12 +1241,17 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
     const verificationController = new AbortController();
     const verificationTimeout = setTimeout(() => verificationController.abort(), 10000);
     const paystackFetch = module.exports.paystackFetch || fetch;
-    const verification = await paystackFetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
-      signal: verificationController.signal,
-    });
-    clearTimeout(verificationTimeout);
-    const result = await verification.json().catch(() => ({}));
+    let verification;
+    let result;
+    try {
+      verification = await paystackFetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+        signal: verificationController.signal,
+      });
+      result = await verification.json().catch(() => ({}));
+    } finally {
+      clearTimeout(verificationTimeout);
+    }
     const expectedAmount = getPaystackAmount();
     const expectedCurrency = getPaystackCurrency();
     if (!verification.ok || result.status !== true || result.data?.status !== 'success' || result.data?.customer?.email?.toLowerCase() !== user.email.toLowerCase() || Number(result.data?.amount) !== expectedAmount || String(result.data?.currency).toUpperCase() !== expectedCurrency) {

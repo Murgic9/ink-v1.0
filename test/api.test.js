@@ -62,6 +62,35 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   });
   const auth = { Authorization: `Bearer ${registered.token}` };
 
+  const flexiblePasswordUser = await request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username: `flex${Date.now()}`, displayName: 'Flexible Password', email: `flex${Date.now()}@example.com`, password: 'x' }),
+  });
+  const longUnicodePassword = '🔐'.repeat(30);
+  const flexiblePasswordStore = readStore();
+  const flexiblePasswordAccount = flexiblePasswordStore.users.find((user) => user.id === flexiblePasswordUser.user.id);
+  const flexibleResetToken = 'flexible-password-reset';
+  flexiblePasswordAccount.passwordReset = {
+    tokenHash: crypto.createHash('sha256').update(flexibleResetToken).digest('hex'),
+    expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+  };
+  writeStore(flexiblePasswordStore);
+  await request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token: flexibleResetToken, password: longUnicodePassword }),
+  });
+  const flexiblePasswordLogin = await request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username: flexiblePasswordAccount.email, password: longUnicodePassword }),
+  });
+  assert.equal(flexiblePasswordLogin.user.id, flexiblePasswordUser.user.id);
+  const wrongLongPassword = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: flexiblePasswordAccount.email, password: `${longUnicodePassword}different` }),
+  });
+  assert.equal(wrongLongPassword.status, 401);
+
   const avatarUpdate = await request('/users/me', {
     method: 'PUT',
     headers: auth,
@@ -233,10 +262,20 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   assert.equal(promoted.user.isPaid, true);
 
   const config = await request('/config');
-  const expectedPaystackCurrency = String(process.env.PAYSTACK_CURRENCY || 'NGN').toUpperCase();
-  const expectedPaystackAmount = Number(process.env.PAYSTACK_AMOUNT || 299900);
+  const originalPaystackCurrency = process.env.PAYSTACK_CURRENCY;
+  const originalPaystackAmount = process.env.PAYSTACK_AMOUNT;
+  const originalPaystackPublicKey = process.env.PAYSTACK_PUBLIC_KEY;
+  const originalPaystackTestMode = process.env.PAYSTACK_TEST_MODE;
+  process.env.PAYSTACK_CURRENCY = 'USD';
+  process.env.PAYSTACK_AMOUNT = '2999';
+  process.env.PAYSTACK_TEST_MODE = 'true';
+  delete process.env.PAYSTACK_PUBLIC_KEY;
+  const usdFallbackConfig = await request('/config');
+  const expectedPaystackCurrency = 'NGN';
+  const expectedPaystackAmount = 299900;
   assert.equal(config.paystackCurrency, expectedPaystackCurrency);
   assert.equal(config.paystackAmount, expectedPaystackAmount);
+  assert.equal(usdFallbackConfig.paystackAmount, expectedPaystackAmount);
 
   const paymentUsername = `premium${Date.now()}`;
   const paymentEmail = `${paymentUsername}@example.com`;
@@ -272,6 +311,18 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   const initPayload = JSON.parse(paystackCalls[0].options.body);
   assert.equal(initPayload.amount, expectedPaystackAmount);
   assert.equal(initPayload.currency, expectedPaystackCurrency);
+  const successfulPaystackFetch = serverModule.paystackFetch;
+  serverModule.paystackFetch = async () => new Response(JSON.stringify({ status: false, message: 'Currency not supported' }), { status: 400 });
+  const unsupportedCurrencyResponse = await fetch(`${baseUrl}/payments/initialize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...paymentAuth },
+    body: JSON.stringify({ planId: 'go-pro' }),
+  });
+  const unsupportedCurrencyBody = await unsupportedCurrencyResponse.json();
+  assert.equal(unsupportedCurrencyResponse.status, 503);
+  assert.match(unsupportedCurrencyBody.message, /NGN/);
+  assert.doesNotMatch(unsupportedCurrencyBody.message, /USD/);
+  serverModule.paystackFetch = successfulPaystackFetch;
   const paymentComplete = await request('/subscribe', {
     method: 'POST',
     headers: paymentAuth,
@@ -280,6 +331,14 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
   assert.equal(paymentComplete.user.isPaid, true);
   assert.equal(paystackCalls.length, 2);
   serverModule.paystackFetch = null;
+  if (originalPaystackCurrency === undefined) delete process.env.PAYSTACK_CURRENCY;
+  else process.env.PAYSTACK_CURRENCY = originalPaystackCurrency;
+  if (originalPaystackAmount === undefined) delete process.env.PAYSTACK_AMOUNT;
+  else process.env.PAYSTACK_AMOUNT = originalPaystackAmount;
+  if (originalPaystackPublicKey === undefined) delete process.env.PAYSTACK_PUBLIC_KEY;
+  else process.env.PAYSTACK_PUBLIC_KEY = originalPaystackPublicKey;
+  if (originalPaystackTestMode === undefined) delete process.env.PAYSTACK_TEST_MODE;
+  else process.env.PAYSTACK_TEST_MODE = originalPaystackTestMode;
 
   const adminReply = await request('/admin/support/messages', {
     method: 'POST',

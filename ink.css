@@ -572,6 +572,32 @@ body.authenticated .public-experience {
   gap: 10px;
 }
 
+.active-writers-dropdown {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+.active-writers-dropdown summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.active-writers-menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
+  padding-top: 10px;
+}
+
 .active-writer {
   display: flex;
   min-width: 0;
@@ -2012,6 +2038,44 @@ h1, h2, h3, h4, .logo {
 .react-btn:hover { background: #e4f1ee; transform: none; }
 .react-btn.danger { color: #b42318; border-color: #f1c5c0; }
 .react-btn.danger:hover { background: #fff1f0; }
+
+body[data-theme="dark"] .section-note,
+body[data-theme="dark"] .plan-description,
+body[data-theme="dark"] .features li,
+body[data-theme="dark"] .empty-copy,
+body[data-theme="dark"] .challenge-summary,
+body[data-theme="dark"] .progress-meta,
+body[data-theme="dark"] .section-header p,
+body[data-theme="dark"] .writer-head span,
+body[data-theme="dark"] .writer-card p,
+body[data-theme="dark"] .writer-meta span,
+body[data-theme="dark"] .post-card p,
+body[data-theme="dark"] .post p,
+body[data-theme="dark"] .comment-item p,
+body[data-theme="dark"] .roadmap-list {
+  color: var(--muted);
+}
+
+body[data-theme="dark"] .prompt-item {
+  color: var(--dark);
+}
+
+body[data-theme="dark"] .modal .sheet,
+body[data-theme="dark"] .comment-item {
+  background: var(--surface);
+  color: var(--dark);
+  border-color: var(--line);
+}
+
+body[data-theme="dark"] .support-chat-messages {
+  background: var(--surface);
+}
+
+body[data-theme="dark"] .react-btn {
+  background: var(--surface);
+  color: var(--dark);
+  border-color: var(--line);
+}
 .features { gap: 10px 20px; }
 
 @media (max-width: 880px) {

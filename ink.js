@@ -2,24 +2,6 @@ const API_BASE = '/api';
 const tokenKey = 'ink_token';
 const userKey = 'ink_user';
 const themeKey = 'ink_theme';
-const paystackReady = new Promise((resolve, reject) => {
-  if (window.PaystackPop) {
-    resolve(window.PaystackPop);
-    return;
-  }
-
-  const script = document.getElementById('paystackScript');
-  if (!script) {
-    reject(new Error('Paystack checkout script is missing.'));
-    return;
-  }
-
-  script.addEventListener('load', () => {
-    if (window.PaystackPop) resolve(window.PaystackPop);
-    else reject(new Error('Paystack checkout loaded without its SDK.'));
-  }, { once: true });
-  script.addEventListener('error', () => reject(new Error('Paystack checkout could not be loaded.')), { once: true });
-});
 
 const state = {
   currentUser: null,
@@ -371,7 +353,7 @@ function renderActiveUsers(message = '') {
     return;
   }
 
-  list.innerHTML = state.activeUsers.slice(0, 8).map((user) => `
+  const writerMarkup = state.activeUsers.map((user) => `
     <article class="active-writer">
       <img src="${escapeHtml(user.avatar || './Img/Logo.jpg')}" alt="" />
       <span class="presence-dot" aria-label="Active"></span>
@@ -381,6 +363,9 @@ function renderActiveUsers(message = '') {
       </div>
     </article>
   `).join('');
+  list.innerHTML = state.activeUsers.length > 5
+    ? `<details class="active-writers-dropdown"><summary>View active writers <span>${state.activeUsers.length}</span></summary><div class="active-writers-menu">${writerMarkup}</div></details>`
+    : writerMarkup;
 }
 
 async function loadStreak() {
@@ -1081,6 +1066,8 @@ async function handleProfileSave(event) {
 
 async function handleRegister(event) {
   event.preventDefault();
+  const submitButton = document.querySelector('#regForm [type="submit"]');
+  if (submitButton) submitButton.disabled = true;
   const payload = {
     username: document.getElementById('regUser').value.trim(),
     displayName: document.getElementById('regName').value.trim(),
@@ -1090,6 +1077,7 @@ async function handleRegister(event) {
 
   if (payload.password !== document.getElementById('regConfirm').value) {
     showToast('Passwords do not match.', 'error');
+    if (submitButton) submitButton.disabled = false;
     return;
   }
 
@@ -1112,11 +1100,15 @@ async function handleRegister(event) {
     loadNotifications();
   } catch (error) {
     showToast(error.message || 'Registration failed.', 'error');
+  } finally {
+    if (submitButton) submitButton.disabled = false;
   }
 }
 
 async function handleLogin(event) {
   event.preventDefault();
+  const submitButton = document.querySelector('#logForm [type="submit"]');
+  if (submitButton) submitButton.disabled = true;
   const payload = {
     username: document.getElementById('logUser').value.trim(),
     password: document.getElementById('logPass').value,
@@ -1139,6 +1131,8 @@ async function handleLogin(event) {
     loadStreak();
   } catch (error) {
     showToast(error.message || 'Login failed.', 'error');
+  } finally {
+    if (submitButton) submitButton.disabled = false;
   }
 }
 
@@ -1241,22 +1235,11 @@ async function subscribeToPlan() {
     button.textContent = 'Connecting to Paystack...';
   }
   try {
-    let data;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      try {
-        data = await requestJson(`${API_BASE}/payments/initialize`, {
-          method: 'POST',
-          headers: attachAuthHeaders(),
-          body: JSON.stringify({ planId: 'go-pro' }),
-        });
-        break;
-      } catch (error) {
-        const isTransient = error instanceof TypeError || [502, 503, 504].includes(error.status);
-        if (!isTransient || attempt === 4) throw error;
-        if (button) button.textContent = 'Waking checkout...';
-        await new Promise((resolve) => setTimeout(resolve, 4000 * (attempt + 1)));
-      }
-    }
+    const data = await requestJson(`${API_BASE}/payments/initialize`, {
+      method: 'POST',
+      headers: attachAuthHeaders(),
+      body: JSON.stringify({ planId: 'go-pro' }),
+    });
     if (!data?.authorizationUrl) throw new Error('Paystack did not return a checkout link. Please try again.');
     window.location.assign(data.authorizationUrl);
   } catch (error) {

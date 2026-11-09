@@ -6,7 +6,6 @@
     <title>INKurgic - Write, Share, React</title>
     <link rel="icon" href="./Img/Logo.jpg" type="icon" />
     <link rel="stylesheet" href="ink.css" />
-    <script id="paystackScript" src="https://js.paystack.co/v1/inline.js" defer></script>
   </head>
   <body>
     <div id="publicExperience" class="public-experience" aria-label="Welcome to INKurgic">
@@ -537,11 +536,11 @@
             </label>
           </div>
           <div class="input-with-toggle">
-            <input id="regPass" type="password" placeholder="Password" required />
+            <input id="regPass" type="password" placeholder="Password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" required />
             <button type="button" class="toggle-eye" id="regPassToggle">👁</button>
           </div>
           <div class="input-with-toggle">
-            <input id="regConfirm" type="password" placeholder="Confirm password" required />
+            <input id="regConfirm" type="password" placeholder="Confirm password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" required />
             <button type="button" class="toggle-eye" id="regConfirmToggle">👁</button>
           </div>
           <div class="form-actions">
@@ -558,7 +557,7 @@
         <form id="logForm">
           <input id="logUser" type="text" placeholder="Username or email" required />
           <div class="input-with-toggle">
-            <input id="logPass" type="password" placeholder="Password" required />
+            <input id="logPass" type="password" placeholder="Password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required />
             <button type="button" class="toggle-eye" id="logPassToggle">👁</button>
           </div>
           <div class="form-actions">
@@ -595,9 +594,8 @@
           </div>
         </form>
         <form id="resetPasswordForm" hidden>
-          <p class="section-note">Choose a new password with at least 8 characters.</p>
-          <input id="resetPassword" type="password" minlength="8" placeholder="New password" required />
-          <input id="resetPasswordConfirm" type="password" minlength="8" placeholder="Confirm new password" required />
+          <input id="resetPassword" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="New password" required />
+          <input id="resetPasswordConfirm" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Confirm new password" required />
           <div class="form-actions">
             <button type="button" class="btn close-modal">Cancel</button>
             <button type="submit" class="btn primary">Update password</button>
