@@ -41,7 +41,7 @@ Set these environment variables in Render:
 - `PAYSTACK_CURRENCY=NGN` (USD configuration falls back to NGN until USD is enabled for the Paystack account).
 - `PAYSTACK_AMOUNT=299900` in Paystack's smallest currency unit (₦2,999.00).
 
-Important: the included store is file-backed. Production requires `DATA_DIR` to point to a mounted persistent volume, normally a Render disk at `/var/data`, to preserve user accounts, writings, streaks, reset tokens, and chats through restarts and code updates. In production, the server stops with an error if `DATA_DIR` is missing or unavailable instead of silently switching to deployment-local or temporary storage. A MongoDB URI may be configured, but the current routes use the file store.
+Important: the included store is file-backed. Production uses `/var/data` by default, so attach a Render persistent disk at that mount path to preserve user accounts, writings, streaks, reset tokens, and chats through restarts and code updates. Set `DATA_DIR` only if the disk is mounted elsewhere. In production, the server stops with an error if the selected data directory is unavailable instead of silently switching to deployment-local or temporary storage. A MongoDB URI may be configured, but the current routes use the file store.
 
 Paystack keys must match the mode: use `pk_test_` and `sk_test_` keys with `PAYSTACK_TEST_MODE=true`, or `pk_live_` and `sk_live_` keys with `PAYSTACK_TEST_MODE=false`.
 

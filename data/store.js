@@ -1,13 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 
-if (process.env.NODE_ENV === 'production' && !process.env.DATA_DIR) {
-  throw new Error('DATA_DIR must point to a mounted persistent volume in production.');
-}
-
 let dataDir = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
-  : __dirname;
+  : process.env.NODE_ENV === 'production'
+    ? '/var/data'
+    : __dirname;
 let dataFile = path.join(dataDir, 'app-data.json');
 let usingFallback = false;
 let mongoSynced = false;
