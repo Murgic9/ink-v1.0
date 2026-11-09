@@ -65,3 +65,5 @@ After deployment, verify `https://your-render-url.onrender.com/api/health`, regi
 ## Notes
 
 The app ships with a working Express API and a JSON fallback data store so the frontend can function even without a MongoDB connection.
+
+Writer Premium lasts one calendar month from each verified payment. After it expires, premium features are disabled and the account can renew through the Subscribe button. Renewal requires a new verified Paystack payment; it is not automatic.

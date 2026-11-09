@@ -128,7 +128,41 @@ function ensureAdminAccount() {
   if (changed) writeStore(store);
 }
 
+function addOneMonth(value) {
+  const date = new Date(value);
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date;
+}
+
+function hasPremiumAccess(user) {
+  if (user?.isAdmin) return true;
+  if (!user?.isPaid) return false;
+  if (!user.paidUntil) return true;
+  const expiration = Date.parse(user.paidUntil);
+  return Number.isFinite(expiration) && expiration > Date.now();
+}
+
+function migrateSubscriptionExpirations() {
+  const store = readStore();
+  let changed = false;
+  for (const user of store.users) {
+    if (!user.isPaid || user.isAdmin || user.paidUntil) continue;
+    const latestSubscription = (store.subscriptions || [])
+      .filter((subscription) => subscription.userId === user.id && subscription.createdAt)
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0];
+    if (!latestSubscription) continue;
+    user.paidUntil = addOneMonth(latestSubscription.createdAt).toISOString();
+    changed = true;
+  }
+  if (changed) writeStore(store);
+}
+
 ensureAdminAccount();
+migrateSubscriptionExpirations();
 
 connectDB();
 
@@ -190,6 +224,7 @@ function sanitizeUser(user) {
   const { passwordHash, lastActiveAt, ...safeUser } = user;
   return {
     ...safeUser,
+    isPaid: hasPremiumAccess(user),
     followersCount: Array.isArray(user.followers) ? user.followers.length : 0,
     followingCount: Array.isArray(user.following) ? user.following.length : 0,
   };
@@ -485,7 +520,7 @@ app.put('/api/users/me', requireAuth, async (req, res) => {
     return res.status(404).json({ message: 'User not found.' });
   }
 
-  if (avatar === './Img/luma.svg' && !store.users[index].isPaid && !store.users[index].isAdmin) {
+  if (avatar === './Img/luma.svg' && !hasPremiumAccess(store.users[index])) {
     return res.status(402).json({ message: 'The premium Luma avatar is available after upgrading.' });
   }
 
@@ -680,7 +715,7 @@ app.post('/api/writings', requireAuth, async (req, res) => {
     const store = readStore();
     const author = store.users.find((user) => user.id === req.user.id);
     const imageCount = store.writings.filter((writing) => writing.authorId === req.user.id && writing.image).length;
-    if (image && author && !author.isPaid && !author.isAdmin && imageCount >= 3) {
+    if (image && author && !hasPremiumAccess(author) && imageCount >= 3) {
       return res.status(402).json({ message: 'Free writers can attach images to 3 writings. Unlock premium for unlimited image uploads.' });
     }
     const writing = {
@@ -896,7 +931,7 @@ app.post('/api/support/messages', requireAuth, (req, res) => {
     senderType: 'user',
     senderName: user.displayName || user.username,
     from: 'You',
-    priority: Boolean(user.isPaid || user.isAdmin),
+    priority: hasPremiumAccess(user),
     text: text.slice(0, 500),
     status: 'unread',
     createdAt: new Date().toISOString(),
@@ -958,7 +993,7 @@ app.get('/api/admin/overview', requireAuth, requireAdmin, (req, res) => {
   return res.json({
     stats: {
       users: store.users.length,
-      paidUsers: store.users.filter((user) => user.isPaid).length,
+      paidUsers: store.users.filter(hasPremiumAccess).length,
       writings: writings.filter((writing) => writing.status !== 'draft').length,
       notifications: store.notifications.length,
       followers: store.users.reduce((sum, user) => sum + (user.followers || []).length, 0),
@@ -1059,7 +1094,8 @@ app.patch('/api/admin/users/:id/pay', requireAuth, requireAdmin, (req, res) => {
     return res.status(404).json({ message: 'User not found.' });
   }
 
-  user.isPaid = !user.isPaid;
+  user.isPaid = !hasPremiumAccess(user);
+  delete user.paidUntil;
   writeStore(store);
   return res.json({ user: sanitizeUser(user) });
 });
@@ -1161,7 +1197,7 @@ app.patch('/api/streak', requireAuth, async (req, res) => {
 app.post('/api/payments/initialize', requireAuth, async (req, res) => {
   const user = readStore().users.find((item) => item.id === req.user.id);
   if (!user) return res.status(404).json({ message: 'User not found.' });
-  if (user.isPaid || user.isAdmin) return res.status(409).json({ message: 'Premium access is already active.' });
+  if (hasPremiumAccess(user)) return res.status(409).json({ message: 'Premium access is already active.' });
   const paystackConfigurationError = getPaystackConfigurationError();
   if (paystackConfigurationError) {
     console.error(`Paystack configuration error: ${paystackConfigurationError}`);
@@ -1263,6 +1299,7 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
   }
 
   user.isPaid = true;
+  user.paidUntil = addOneMonth(new Date()).toISOString();
   store.subscriptions.push({
     id: `sub-${Date.now()}`,
     userId: user.id,
@@ -1275,6 +1312,7 @@ app.post('/api/subscribe', requireAuth, async (req, res) => {
     approved: true,
     reference: String(reference),
     createdAt: new Date().toISOString(),
+    expiresAt: user.paidUntil,
   });
 
   writeStore(store);

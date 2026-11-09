@@ -329,7 +329,33 @@ test('core account, privacy, streak, prompt, and admin flows work', async () => 
     body: JSON.stringify({ planId: 'go-pro', reference: 'paystack-test-reference' }),
   });
   assert.equal(paymentComplete.user.isPaid, true);
-  assert.equal(paystackCalls.length, 2);
+  assert.ok(Date.parse(paymentComplete.user.paidUntil) > Date.now());
+  const expiredPaymentStore = readStore();
+  const expiredPaymentUser = expiredPaymentStore.users.find((user) => user.id === paymentUser.user.id);
+  expiredPaymentUser.paidUntil = new Date(Date.now() - 1000).toISOString();
+  writeStore(expiredPaymentStore);
+  const expiredPaymentProfile = await request('/auth/me', { headers: paymentAuth });
+  assert.equal(expiredPaymentProfile.user.isPaid, false);
+  const expiredPremiumAvatar = await fetch(`${baseUrl}/users/me`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...paymentAuth },
+    body: JSON.stringify({ avatar: './Img/luma.svg' }),
+  });
+  assert.equal(expiredPremiumAvatar.status, 402);
+  const renewalInit = await request('/payments/initialize', {
+    method: 'POST',
+    headers: paymentAuth,
+    body: JSON.stringify({ planId: 'go-pro' }),
+  });
+  assert.equal(renewalInit.authorizationUrl, 'https://checkout.paystack.com/test');
+  const renewalComplete = await request('/subscribe', {
+    method: 'POST',
+    headers: paymentAuth,
+    body: JSON.stringify({ planId: 'go-pro', reference: 'paystack-renewal-reference' }),
+  });
+  assert.equal(renewalComplete.user.isPaid, true);
+  assert.ok(Date.parse(renewalComplete.user.paidUntil) > Date.now());
+  assert.equal(paystackCalls.length, 4);
   serverModule.paystackFetch = null;
   if (originalPaystackCurrency === undefined) delete process.env.PAYSTACK_CURRENCY;
   else process.env.PAYSTACK_CURRENCY = originalPaystackCurrency;

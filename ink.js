@@ -484,7 +484,14 @@ function renderProfileSummary() {
   if (writerSavedValue) writerSavedValue.textContent = String(savedTotal);
   renderStreakOverview(state.streak);
   if (writerStatusValue) writerStatusValue.textContent = user.isPaid ? 'Pro' : 'Free';
-  if (writerStatusNote) writerStatusNote.textContent = user.isPaid ? 'Premium tools unlocked' : 'Unlock premium tools';
+  if (writerStatusNote) writerStatusNote.textContent = user.isPaid
+    ? user.paidUntil ? `Premium through ${new Date(user.paidUntil).toLocaleDateString()}` : 'Premium tools unlocked'
+    : 'Unlock premium tools';
+  const subscribeButton = document.getElementById('subscribeBtn');
+  if (subscribeButton) {
+    subscribeButton.disabled = Boolean(user.isPaid);
+    subscribeButton.textContent = user.isPaid ? 'Premium Active' : user.paidUntil ? 'Renew Premium' : 'Subscribe';
+  }
   const planCard = document.getElementById('planCard');
   if (planCard) planCard.hidden = Boolean(user.isAdmin);
   const writingPace = Math.min(100, myPosts.filter((item) => item.status !== 'draft').length * 20 + (state.streak?.current || 0) * 5);
