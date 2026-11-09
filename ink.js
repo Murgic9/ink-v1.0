@@ -1101,6 +1101,9 @@ async function handleRegister(event) {
     showSuccessBadge();
     showToast('Welcome to INKurgic.', 'success');
     navigate('home');
+    state.guideStep = 0;
+    renderGuide();
+    openModal('howToUseModal');
     loadPosts();
     loadStreak();
     renderSupportChat();

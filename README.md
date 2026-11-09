@@ -41,14 +41,14 @@ Set these environment variables in Render:
 - `PAYSTACK_CURRENCY=NGN` (USD configuration falls back to NGN until USD is enabled for the Paystack account).
 - `PAYSTACK_AMOUNT=299900` in Paystack's smallest currency unit (₦2,999.00).
 
-Important: the included store is file-backed. Render services have ephemeral filesystems, so production user, writing, streak, reset-token, and chat data requires a paid Render persistent disk mounted at `/var/data` and `DATA_DIR=/var/data`. If that path is unavailable, the service falls back to temporary storage and logs a warning; data in that fallback can be lost on restart or deploy. A MongoDB URI may be configured for future migration, but the current routes use the file store.
+Important: the included store is file-backed. Production requires `DATA_DIR` to point to a mounted persistent volume, normally a Render disk at `/var/data`, to preserve user accounts, writings, streaks, reset tokens, and chats through restarts and code updates. In production, the server stops with an error if `DATA_DIR` is missing or unavailable instead of silently switching to deployment-local or temporary storage. A MongoDB URI may be configured, but the current routes use the file store.
 
 Paystack keys must match the mode: use `pk_test_` and `sk_test_` keys with `PAYSTACK_TEST_MODE=true`, or `pk_live_` and `sk_live_` keys with `PAYSTACK_TEST_MODE=false`.
 
 ### Render launch checklist
 
 1. Create a Render Web Service from the repository and set the build, start, and health-check values above.
-2. Add a paid Render persistent disk mounted at `/var/data`; without it, production data will be lost on restart or deploy.
+2. Add a paid Render persistent disk mounted at `/var/data`; production will not start if its data directory is unavailable.
 3. Add every environment variable in the Render Environment tab. Generate `JWT_SECRET` with a password manager or a cryptographically secure generator and use 32 or more characters.
 4. Set `ADMIN_PASSWORD` before the first deploy. Log in using `inkurgic@gmail.com`; the old `ember@inkurgic.com` alias remains supported for existing accounts.
 5. Deploy and open `/api/health`. Confirm it returns `ok: true`.

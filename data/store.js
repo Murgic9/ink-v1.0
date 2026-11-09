@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
+if (process.env.NODE_ENV === 'production' && !process.env.DATA_DIR) {
+  throw new Error('DATA_DIR must point to a mounted persistent volume in production.');
+}
+
 let dataDir = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
   : __dirname;
@@ -67,6 +71,9 @@ function ensureStore() {
       fs.writeFileSync(dataFile, JSON.stringify(seedData, null, 2), 'utf8');
     }
   } catch (error) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`Persistent data directory is unavailable at ${dataDir}: ${error.message}`);
+    }
     if (usingFallback || !['EACCES', 'EROFS', 'ENOSPC'].includes(error.code)) throw error;
 
     dataDir = path.join(require('os').tmpdir(), 'inkurgic-data');
